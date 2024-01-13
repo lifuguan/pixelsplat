@@ -29,6 +29,8 @@ from typing import Literal
 from pathlib import Path
 from .dataset import DatasetCfgCommon
     
+import cv2
+from .base_utils import downsample_gaussian_blur
 
 class IBRNetCollectedDataset(IterableDataset):
     def __init__(self, args, mode, step_tracker, **kwargs):
@@ -56,6 +58,10 @@ class IBRNetCollectedDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
+        image_size = 480
+        self.ratio = image_size / 504
+        self.h, self.w = int(self.ratio*378), int(image_size)
+        
         for i, scene in enumerate(all_scenes):
             if 'ibrnet_collected_2' in scene:
                 factor = 8
@@ -99,8 +105,13 @@ class IBRNetCollectedDataset(IterableDataset):
         for idx in range(len(self.render_rgb_files)):
             rgb_file = self.render_rgb_files[idx]
             rgb = imageio.imread(rgb_file).astype(np.float32) / 255.
+            if self.w != 504:
+                rgb = cv2.resize(downsample_gaussian_blur(
+                    rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
             render_pose = self.render_poses[idx]
             intrinsics = self.render_intrinsics[idx]
+            intrinsics[:2, :] *= self.ratio
+            
             depth_range = self.render_depth_range[idx]
             mean_depth = np.mean(depth_range)
             world_center = (render_pose.dot(np.array([[0, 0, mean_depth, 1]]).T)).flatten()[:3]
@@ -149,6 +160,9 @@ class IBRNetCollectedDataset(IterableDataset):
             src_intrinsics, src_extrinsics = [], []
             for id in nearest_pose_ids:
                 src_rgb = imageio.imread(train_rgb_files[id]).astype(np.float32) / 255.
+                if self.w != 1296:
+                    src_rgb = cv2.resize(downsample_gaussian_blur(
+                        src_rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
                 train_pose = train_poses[id]
                 train_intrinsics_ = train_intrinsics[id]
                 src_extrinsics.append(train_pose)

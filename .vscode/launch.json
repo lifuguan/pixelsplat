@@ -39,7 +39,7 @@
                 "data_loader.train.batch_size=1",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "7",
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
             }
         },
         {
