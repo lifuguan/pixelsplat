@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 "wandb.mode=disabled",
                 "+experiment=re10k",
@@ -20,16 +20,38 @@
                 "data_loader.train.batch_size=1",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "7",
             }
         },
         {
+            "name": "Train (ibrnet)",
+            "type": "python",
+            "request": "launch",
+            "module": "src.main",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "wandb.mode=disabled",
+                "+experiment=ibrnet",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "7",
+            }
+        },
+        {
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "7",
+            },
             "name": "Test (Debug)",
             "type": "python",
             "request": "launch",
             "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 "wandb.mode=disabled",
                 "data_loader.train.num_workers=0",
@@ -38,11 +60,8 @@
                 "+experiment=re10k",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=checkpoints/re10k.ckpt",
+                "checkpointing.load=model_zoo/re10k.ckpt",
             ],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-            }
         },
         {
             "name": "Test Splatter",

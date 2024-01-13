@@ -158,9 +158,12 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
             "... (srf c) -> ... srf c",
             srf=self.cfg.num_surfaces,
         )
+
+        # 在第一张图片上，构建uv坐标系
         offset_xy = gaussians[..., :2].sigmoid()
         pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=device)
         xy_ray = xy_ray + (offset_xy - 0.5) * pixel_size
+
         gpp = self.cfg.gaussians_per_pixel
         gaussians = self.gaussian_adapter.forward(
             rearrange(context["extrinsics"], "b v i j -> b v () () () i j"),

@@ -1,18 +1,18 @@
 # @package _global_
 
 defaults:
-  - override /dataset: re10k
+  - override /dataset: ibrnet
   - override /model/encoder: epipolar
   - override /model/encoder/backbone: dino
   - override /loss: [mse, lpips]
 
 wandb:
-  name: re10k
-  tags: [re10k, 256x256]
+  name: ibrnet
+  tags: [ibrnet, 256x256]
 
 dataset:
   image_shape: [256, 256]
-  roots: [data/re10k/re10k_subset]
+  roots: [data/ibrnet/re10k_subset]
 
 data_loader:
   train:

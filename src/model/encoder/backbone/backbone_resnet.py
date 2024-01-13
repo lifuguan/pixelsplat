@@ -87,7 +87,7 @@ class BackboneResnet(Backbone[BackboneResnetCfg]):
 
         # Upscale the features.
         features = [
-            F.interpolate(f, (h, w), mode="bilinear", align_corners=True)
+            F.interpolate(f.to(dtype=torch.float32), (h, w), mode="bilinear", align_corners=True).to(dtype=torch.bfloat16)
             for f in features
         ]
         features = torch.stack(features).sum(dim=0)

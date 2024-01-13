@@ -175,3 +175,7 @@ cython_debug/
 table.tex
 /baselines
 /test/*
+
+
+data
+model_zoo

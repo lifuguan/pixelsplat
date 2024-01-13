@@ -151,8 +151,8 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch, batch_idx):
-        batch: BatchedExample = self.data_shim(batch)
+    def test_step(self, batch_, batch_idx):
+        batch: BatchedExample = self.data_shim(batch_)
 
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
@@ -174,6 +174,7 @@ class ModelWrapper(LightningModule):
                 batch["target"]["near"],
                 batch["target"]["far"],
                 (h, w),
+                depth_mode="depth",
             )
 
         # Save images.
@@ -452,7 +453,7 @@ class ModelWrapper(LightningModule):
         if loop_reverse:
             video = pack([video, video[::-1][1:-1]], "* c h w")[0]
         visualizations = {
-            f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
+            f"video/{name}": wandb.Video(video, fps=30, format="mp4")
         }
 
         # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
