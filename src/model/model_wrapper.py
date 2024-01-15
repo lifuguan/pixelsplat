@@ -143,6 +143,7 @@ class ModelWrapper(LightningModule):
                 f"scene = {batch['scene']}; "
                 f"context = {batch['context']['index'].tolist()}; "
                 f"loss = {total_loss:.6f}"
+                f"psnr = {psnr_probabilistic.mean():.2f}"
             )
 
         # Tell the data loader processes about the current step.

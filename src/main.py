@@ -113,10 +113,13 @@ def train(cfg_dict: DictConfig):
         get_losses(cfg.loss),
         step_tracker,
     )
+    checkpoint = torch.load(checkpoint_path)
+    model_wrapper.load_state_dict(checkpoint['state_dict'])
     data_module = DataModule(cfg.dataset, cfg.data_loader, step_tracker)
 
     if cfg.mode == "train":
-        trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
+        trainer.fit(model_wrapper, datamodule=data_module)
+        # trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=checkpoint_path)
     else:
         trainer.test(
             model_wrapper,
