@@ -142,7 +142,7 @@ class ModelWrapper(LightningModule):
                 f"train step {self.global_step}; "
                 f"scene = {batch['scene']}; "
                 f"context = {batch['context']['index'].tolist()}; "
-                f"loss = {total_loss:.6f}"
+                f"loss = {total_loss:.6f}; "
                 f"psnr = {psnr_probabilistic.mean():.2f}"
             )
 
@@ -178,12 +178,26 @@ class ModelWrapper(LightningModule):
                 depth_mode="depth",
             )
 
+        target_gt = batch["target"]["image"]
+        psnr_probabilistic = compute_psnr(
+            rearrange(target_gt, "b v c h w -> (b v) c h w"),
+            rearrange(output.color, "b v c h w -> (b v) c h w"),
+        )
+
+        if self.global_rank == 0:
+            print(
+                f"train step {self.global_step}; "
+                f"scene = {batch['scene']}; "
+                f"context = {batch['context']['index'].tolist()}; "
+                f"psnr = {psnr_probabilistic.mean():.2f}"
+            )
+
         # Save images.
         (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
         for index, color in zip(batch["target"]["index"][0], output.color[0]):
-            save_image(color, path / scene / f"color/{index:0>6}.png")
+            save_image(color, path / scene / f"color/{index:0>2}.png")
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]

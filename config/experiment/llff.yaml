@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - override /dataset: llff
+  - override /model/encoder: epipolar
+  - override /model/encoder/backbone: dino
+  - override /loss: [mse, lpips]
+
+wandb:
+  name: llff
+  tags: [ibrnet, 256x256]
+
+dataset:
+  image_shape: [256, 256]
+  roots: [data/ibrnet/re10k_subset]
+
+data_loader:
+  train:
+    batch_size: 7
+
+trainer:
+  max_steps: 300_001

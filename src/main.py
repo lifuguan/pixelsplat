@@ -95,10 +95,11 @@ def train(cfg_dict: DictConfig):
         if torch.cuda.device_count() > 1
         else "auto",
         callbacks=callbacks,
-        val_check_interval=cfg.trainer.val_check_interval,
+        # val_check_interval=cfg.trainer.val_check_interval,
         enable_progress_bar=False,
         gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=cfg.trainer.max_steps,
+        limit_val_batches=0.0
     )
 
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)
