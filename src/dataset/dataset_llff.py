@@ -32,9 +32,19 @@ from .dataset import DatasetCfgCommon
 import cv2
 from .base_utils import downsample_gaussian_blur
 
+@dataclass
+class DatasetLLFFCfg(DatasetCfgCommon):
+    name: Literal["re10k","ibrnet", "llff"]
+    roots: list[Path]
+    baseline_epsilon: float
+    max_fov: float
+    make_baseline_1: bool
+    augment: bool
+    scene: list[str]
+    
 
 class LLFFTestDataset(IterableDataset):
-    def __init__(self, args, mode, step_tacker, **kwargs):
+    def __init__(self, args: DatasetLLFFCfg, mode, step_tacker, **kwargs):
         self.folder_path = os.path.join('data/ibrnet/eval', 'nerf_llff_data/')
         self.dataset_name = 'llff'
         self.pose_noise_level = 0
@@ -64,9 +74,9 @@ class LLFFTestDataset(IterableDataset):
         
         all_scenes = os.listdir(self.folder_path)
         
-        scene = ['room']
-        if len(scene) > 0:
-            self.scenes = scene
+        
+        if len(args.scene) > 0:
+            self.scenes = args.scene
         else:
             self.scenes = all_scenes
 

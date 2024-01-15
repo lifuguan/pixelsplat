@@ -44,6 +44,27 @@
             }
         },
         {
+            "name": "Train (llff-room)",
+            "type": "python",
+            "request": "launch",
+            "module": "src.main",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "wandb.mode=disabled",
+                "+experiment=llff",
+                "++dataset.scene=['room']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "checkpointing.load=model_zoo/ibrnet.ckpt",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "2,3",
+            }
+        },
+        {
             "env": {
                 "CUDA_VISIBLE_DEVICES": "2",
             },
