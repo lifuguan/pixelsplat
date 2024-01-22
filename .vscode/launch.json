@@ -40,7 +40,7 @@
                 "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1",
+                "CUDA_VISIBLE_DEVICES": "7",
             }
         },
         {
@@ -58,15 +58,16 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=model_zoo/ibrnet.ckpt",
+                // "checkpointing.load=outputs/2024-01-17/16-30-50/checkpoints/8000.ckpt",
+                "checkpointing.load=outputs/LLFF_training/checkpoints/2000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "2,3",
+                "CUDA_VISIBLE_DEVICES": "3",
             }
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "2",
+                "CUDA_VISIBLE_DEVICES": "3",
             },
             "name": "Test (llff)",
             "type": "python",
@@ -79,11 +80,11 @@
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "++dataset.scene=['room']",
+                "++dataset.scene=['fortress']",
                 "+experiment=llff",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/2024-01-15/20-16-59/checkpoints/1000.ckpt",
+                "checkpointing.load=outputs/LLFF_training/checkpoints/2000.ckpt",
             ],
         },
         {

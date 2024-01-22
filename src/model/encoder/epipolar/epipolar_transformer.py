@@ -119,6 +119,10 @@ class EpipolarTransformer(nn.Module):
         else:
             q = sampling.features
 
+        # TODO: 意义不明
+        # if q.shape[2] > 1:
+        #     q = q.mean(dim=2, keepdims=True)
+
         # Run the transformer.
         kv = rearrange(features, "b v c h w -> (b v h w) () c")
         features = self.transformer.forward(

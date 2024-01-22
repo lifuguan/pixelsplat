@@ -29,6 +29,7 @@ class DatasetRE10kCfg(DatasetCfgCommon):
     max_fov: float
     make_baseline_1: bool
     augment: bool
+    scene: list[str]
 
 
 class DatasetRE10k(IterableDataset):

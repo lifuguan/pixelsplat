@@ -3,14 +3,16 @@ from torch.utils.data import Dataset
 from ..misc.step_tracker import StepTracker
 from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg
 from .dataset_ibrnet import IBRNetCollectedDataset 
-from .dataset_llff import LLFFTestDataset 
+from .dataset_llff_test import LLFFTestDataset 
+from .dataset_llff import LLFFDataset 
 from .types import Stage
 from .view_sampler import get_view_sampler
 
 DATASETS: dict[str, Dataset] = {
     "re10k": DatasetRE10k,
     "ibrnet": IBRNetCollectedDataset,
-    "llff": LLFFTestDataset,
+    "llfftest": LLFFTestDataset,
+    "llff": LLFFDataset,
 }
 
 

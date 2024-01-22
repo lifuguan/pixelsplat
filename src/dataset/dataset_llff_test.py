@@ -33,9 +33,9 @@ import random
 from .base_utils import downsample_gaussian_blur
     
 
-class LLFFDataset(IterableDataset):
+class LLFFTestDataset(IterableDataset):
     def __init__(self, args, mode, step_tacker, **kwargs):
-        self.folder_path = os.path.join('data/ibrnet/train', 'real_iconic_noface/')
+        self.folder_path = os.path.join('data/ibrnet/eval', 'nerf_llff_data/')
         self.dataset_name = 'llff'
         self.pose_noise_level = 0
 
@@ -60,7 +60,7 @@ class LLFFDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (176, 240)
+        self.image_size = (178, 240)
         out_w = 240
         self.ratio = out_w / 504
         self.h, self.w = int(self.ratio*378), int(out_w)

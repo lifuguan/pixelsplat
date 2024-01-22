@@ -54,5 +54,5 @@ seed: 111123
 
 trainer:
   max_steps: -1
-  val_check_interval: 0
+  val_check_interval: 10
   gradient_clip_val: 0.5

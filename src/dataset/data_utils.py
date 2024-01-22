@@ -25,6 +25,8 @@ from PIL import Image
 from scipy.spatial.transform import Rotation as R
 from networkx import Graph
 
+from .base_utils import downsample_gaussian_blur
+
 rng = np.random.RandomState(234)
 _EPS = np.finfo(float).eps * 4.0
 TINY_NUMBER = 1e-6      # float32 only has 7 decimal digits precision
@@ -123,7 +125,30 @@ def random_crop(rgb, camera, src_rgbs, src_cameras, size=(400, 600), center=None
     src_cameras[:, 8] -= center_h - out_h // 2
     src_cameras[:, 0] = out_h
     src_cameras[:, 1] = out_w
-    return rgb_out, camera, src_rgbs, src_cameras
+    return rgb_out, camera, src_rgbs, src_cameras, camera[2:18].reshape(4, 4)[..., :3, :3], src_cameras[:, 2:18].reshape(-1, 4, 4)[..., :3, :3]
+
+def loader_resize(rgb, camera, src_rgbs, src_cameras, size=(400, 600)):
+    h, w = rgb.shape[:2]
+    out_h, out_w = size[0], size[1]
+    intrinsics = camera[2:18].reshape(4, 4)
+    src_intrinsics = src_cameras[:, 2:18].reshape(-1, 4, 4)
+    if out_w >= w or out_h >= h:
+        return rgb, camera, src_rgbs, src_cameras
+
+    ratio_y = out_h / h
+    ratio_x = out_w / w
+    intrinsics[:1, :1] *= ratio_y
+    src_intrinsics[:, :1, :1] *= ratio_y
+    intrinsics[1:2, 1:2] *= ratio_x
+    src_intrinsics[:, 1:2, 1:2] *= ratio_x
+    camera[2:18] = intrinsics.flatten()
+    src_cameras[:, 2:18] = src_intrinsics.reshape(-1, 16)
+    rgb = cv2.resize(downsample_gaussian_blur(
+                rgb, ratio_y), (out_w, out_h), interpolation=cv2.INTER_LINEAR)
+    src_rgbs = [cv2.resize(downsample_gaussian_blur(
+                src_rgb, ratio_y), (out_w, out_h), interpolation=cv2.INTER_LINEAR) for src_rgb in src_rgbs]
+    src_rgbs = np.stack(src_rgbs, axis=0)
+    return rgb, camera, src_rgbs, src_cameras, intrinsics[..., :3, :3], src_intrinsics[..., :3, :3]
 
 
 def random_crop_img_depth(rgb, camera, src_rgbs, src_cameras, depth, size=(400, 600), center=None):
