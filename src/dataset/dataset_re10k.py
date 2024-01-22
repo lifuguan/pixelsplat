@@ -23,7 +23,7 @@ from .view_sampler import ViewSampler
 
 @dataclass
 class DatasetRE10kCfg(DatasetCfgCommon):
-    name: Literal["re10k","ibrnet", "llff"]
+    name: Literal["re10k","ibrnet", "llff", "llff_test"]
     roots: list[Path]
     baseline_epsilon: float
     max_fov: float

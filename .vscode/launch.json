@@ -37,10 +37,10 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=model_zoo/ibrnet.ckpt",
+                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "7",
+                "CUDA_VISIBLE_DEVICES": "4",
             }
         },
         {
@@ -52,22 +52,22 @@
             "justMyCode": false,
             "args": [
                 "wandb.mode=disabled",
-                "+experiment=llff",
+                "+experiment=llff_test",
                 "++dataset.scene=['room']",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
                 // "checkpointing.load=outputs/2024-01-17/16-30-50/checkpoints/8000.ckpt",
-                "checkpointing.load=outputs/LLFF_training/checkpoints/2000.ckpt",
+                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "3",
+                "CUDA_VISIBLE_DEVICES": "4",
             }
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "3",
+                "CUDA_VISIBLE_DEVICES": "1",
             },
             "name": "Test (llff)",
             "type": "python",
@@ -80,11 +80,12 @@
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "++dataset.scene=['fortress']",
-                "+experiment=llff",
+                "++dataset.scene=['room']",
+                "+experiment=llff_test",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/LLFF_training/checkpoints/2000.ckpt",
+                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
         },
         {

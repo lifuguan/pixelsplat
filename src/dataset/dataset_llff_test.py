@@ -60,7 +60,7 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (178, 240)
+        self.image_size = (176, 240)
         out_w = 240
         self.ratio = out_w / 504
         self.h, self.w = int(self.ratio*378), int(out_w)
@@ -129,7 +129,11 @@ class LLFFTestDataset(IterableDataset):
     def __len__(self):
         return len(self.render_rgb_files)
 
+    def shuffle(self, lst: list) -> list:
+        indices = torch.randperm(len(lst))
+        return [lst[x] for x in indices]
     def __iter__(self):
+        self.shuffle(self.render_rgb_files)
         for idx in range(len(self.render_rgb_files)):
             rgb_file = self.render_rgb_files[idx]
             scene, img_idx = rgb_file.split("/")[4], rgb_file[-7:-4]
