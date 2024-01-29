@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Optional
 
-from einops import rearrange
+from einops import rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor, nn
 
@@ -80,7 +80,7 @@ class EpipolarTransformer(nn.Module):
         intrinsics: Float[Tensor, "batch view 3 3"],
         near: Float[Tensor, "batch view"],
         far: Float[Tensor, "batch view"],
-    ) -> tuple[Float[Tensor, "batch view channel height width"], EpipolarSampling,]:
+    ) -> tuple[Float[Tensor, "batch 1 channel height width"], EpipolarSampling,]:
         b, v, _, h, w = features.shape
 
         # If needed, apply downscaling.
@@ -101,18 +101,18 @@ class EpipolarTransformer(nn.Module):
                 rearrange(sampling.origins, "b v r xyz -> b v () r () xyz"),
                 rearrange(sampling.directions, "b v r xyz -> b v () r () xyz"),
                 sampling.xy_sample,
-                rearrange(collect(extrinsics), "b v ov i j -> b v ov () () i j"),
-                rearrange(collect(intrinsics), "b v ov i j -> b v ov () () i j"),
+                rearrange(collect(extrinsics)[:,0:1,...], "b v ov i j -> b v ov () () i j"),
+                rearrange(collect(intrinsics)[:,0:1,...], "b v ov i j -> b v ov () () i j"),
             )
 
             # Clip the depths. This is necessary for edge cases where the context views
             # are extremely close together (or possibly oriented the same way).
-            depths = depths.maximum(near[..., None, None, None])
-            depths = depths.minimum(far[..., None, None, None])
+            depths = depths.maximum(near[:,0:1][..., None, None, None])
+            depths = depths.minimum(far[:,0:1][..., None, None, None])
             depths = depth_to_relative_disparity(
                 depths,
-                rearrange(near, "b v -> b v () () ()"),
-                rearrange(far, "b v -> b v () () ()"),
+                rearrange(near[:,0:1], "b v -> b v () () ()"),
+                rearrange(far[:,0:1], "b v -> b v () () ()"),
             )
             depths = self.depth_encoding(depths[..., None])
             q = sampling.features + depths
@@ -124,12 +124,13 @@ class EpipolarTransformer(nn.Module):
         #     q = q.mean(dim=2, keepdims=True)
 
         # Run the transformer.
-        kv = rearrange(features, "b v c h w -> (b v h w) () c")
+        kv = repeat(features[:,0:1,...], "b v c h w -> b (repeat v) c h w", repeat=v-1)
+        kv = rearrange(kv, "b v c h w -> (b v h w) () c")
         features = self.transformer.forward(
-            kv,
-            rearrange(q, "b v () r s c -> (b v r) s c"),
+            kv,     # 这里是以自己视角作为query
+            rearrange(q, "b () v r s c -> (b v r) s c"),    # 以epip feature作为key / value
             b=b,
-            v=v,
+            v=v-1,
             h=h // self.cfg.downscale,
             w=w // self.cfg.downscale,
         )
@@ -137,7 +138,7 @@ class EpipolarTransformer(nn.Module):
             features,
             "(b v h w) () c -> b v c h w",
             b=b,
-            v=v,
+            v=v-1,
             h=h // self.cfg.downscale,
             w=w // self.cfg.downscale,
         )
@@ -147,8 +148,9 @@ class EpipolarTransformer(nn.Module):
             features = rearrange(features, "b v c h w -> (b v) c h w")
             features = self.upscaler(features)
             features = self.upscale_refinement(features) + features
-            features = rearrange(features, "(b v) c h w -> b v c h w", b=b, v=v)
+            features = rearrange(features, "(b v) c h w -> b v c h w", b=b, v=v-1)
 
+        features = features.mean(dim=1, keepdims=True)
         return features, sampling
 
 

@@ -136,16 +136,16 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
             )
 
         # Add the high-resolution skip connection.
-        skip = rearrange(context["image"], "b v c h w -> (b v) c h w")
+        skip = rearrange(context["image"][:,0:1,...], "b v c h w -> (b v) c h w")
         skip = self.high_resolution_skip(skip)
-        features = features + rearrange(skip, "(b v) c h w -> b v c h w", b=b, v=v)
+        features = features + rearrange(skip, "(b v) c h w -> b v c h w", b=b, v=1)
 
         # Sample depths from the resulting features.
         features = rearrange(features, "b v c h w -> b v (h w) c")
         depths, densities = self.depth_predictor.forward(
             features,
-            context["near"],
-            context["far"],
+            context["near"][:,0:1],
+            context["far"][:,0:1],
             deterministic,
             1 if deterministic else self.cfg.gaussians_per_pixel,
         )
@@ -166,8 +166,8 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
 
         gpp = self.cfg.gaussians_per_pixel
         gaussians = self.gaussian_adapter.forward(
-            rearrange(context["extrinsics"], "b v i j -> b v () () () i j"),
-            rearrange(context["intrinsics"], "b v i j -> b v () () () i j"),
+            rearrange(context["extrinsics"][:,0:1,...], "b v i j -> b v () () () i j"),
+            rearrange(context["intrinsics"][:,0:1,...], "b v i j -> b v () () () i j"),
             rearrange(xy_ray, "b v r srf xy -> b v r srf () xy"),
             depths,
             self.map_pdf_to_opacity(densities, global_step) / gpp,

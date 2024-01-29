@@ -60,19 +60,20 @@ class EpipolarSampler(nn.Module):
         b, v, _, _, _ = images.shape
 
         # Generate the rays that are projected onto other views.
+        # 以第一张图为原点，其他图片为相对视图
         xy_ray, origins, directions = self.generate_image_rays(
-            images, extrinsics, intrinsics
+            images[:,0:1,...], extrinsics[:,0:1,...], intrinsics[:,0:1,...]
         )
 
         # Select the camera extrinsics and intrinsics to project onto. For each context
         # view, this means all other context views in the batch.
         projection = project_rays(
-            rearrange(origins, "b v r xyz -> b v () r xyz"),
-            rearrange(directions, "b v r xyz -> b v () r xyz"),
-            rearrange(self.collect(extrinsics), "b v ov i j -> b v ov () i j"),
-            rearrange(self.collect(intrinsics), "b v ov i j -> b v ov () i j"),
-            rearrange(near, "b v -> b v () ()"),
-            rearrange(far, "b v -> b v () ()"),
+            rearrange(origins, "b v r xyz -> b v () r xyz"),     # view = 1
+            rearrange(directions, "b v r xyz -> b v () r xyz"),  # view = 1
+            rearrange(self.collect(extrinsics)[:,0:1,...], "b v ov i j -> b v ov () i j"),
+            rearrange(self.collect(intrinsics)[:,0:1,...], "b v ov i j -> b v ov () i j"),
+            rearrange(near[:,0:1], "b v -> b v () ()"),
+            rearrange(far[:,0:1], "b v -> b v () ()"),
         )
 
 
@@ -95,18 +96,19 @@ class EpipolarSampler(nn.Module):
         # drawn. If the diagonal weren't removed for efficiency, this would be a literal
         # transpose. In our case, it's as if the diagonal were re-added, the transpose
         # were taken, and the diagonal were then removed again.
-        samples = self.transpose(xy_sample)
+        # samples = self.transpose(xy_sample)
+        samples = xy_sample.permute(0, 2, 1, 3, 4, 5)
         samples = F.grid_sample(
-            rearrange(images, "b v c h w -> (b v) c h w"),
+            rearrange(images[:,1:,...], "b v c h w -> (b v) c h w"),
             rearrange(2 * samples - 1, "b v ov r s xy -> (b v) (ov r s) () xy"),
             mode="bilinear",
             padding_mode="zeros",
             align_corners=False,
         )
         samples = rearrange(
-            samples, "(b v) c (ov r s) () -> b v ov r s c", b=b, v=v, ov=v - 1, s=s
+            samples, "(b v) c (ov r s) () -> b v ov r s c", b=b, v=v-1, ov=1, s=s
         )
-        samples = self.transpose(samples)
+        samples = samples.permute(0, 2, 1, 3, 4, 5)
 
         # Zero out invalid samples.
         samples = samples * projection["overlaps_image"][..., None, None]
@@ -152,6 +154,8 @@ class EpipolarSampler(nn.Module):
         b, v, ov, *_ = x.shape
         t_b = torch.arange(b, device=x.device)
         t_b = repeat(t_b, "b -> b v ov", v=v, ov=ov)
+        # t_v = repeat(self.transpose_v[0:1,:], "v ov -> b v ov", b=b)
+        # t_ov = repeat(self.transpose_ov[0:1,:], "v ov -> b v ov", b=b)
         t_v = repeat(self.transpose_v, "v ov -> b v ov", b=b)
         t_ov = repeat(self.transpose_ov, "v ov -> b v ov", b=b)
         return x[t_b, t_v, t_ov]
@@ -162,6 +166,6 @@ class EpipolarSampler(nn.Module):
     ) -> Shaped[Tensor, "batch view view-1 ..."]:
         b, v, *_ = target.shape
         index_b = torch.arange(b, device=target.device)
-        index_b = repeat(index_b, "b -> b v ov", v=v, ov=v - 1)
+        index_b = repeat(index_b, "b -> b v ov", v=v, ov=1)
         index_v = repeat(self.index_v, "v ov -> b v ov", b=b)
         return target[index_b, index_v]

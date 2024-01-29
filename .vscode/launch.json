@@ -24,7 +24,7 @@
             }
         },
         {
-            "name": "Train (llff)",
+            "name": "Train (all)",
             "type": "python",
             "request": "launch",
             "module": "src.main",
@@ -37,10 +37,10 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                "checkpointing.load=outputs/2024-01-22/20-43-46/checkpoints/3500.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4",
+                "CUDA_VISIBLE_DEVICES": "0,1",
             }
         },
         {
@@ -59,15 +59,15 @@
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
                 // "checkpointing.load=outputs/2024-01-17/16-30-50/checkpoints/8000.ckpt",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                "checkpointing.load=outputs/2024-01-22/20-43-46/checkpoints/3500.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4",
+                "CUDA_VISIBLE_DEVICES": "1",
             }
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "1",
+                "CUDA_VISIBLE_DEVICES": "2",
             },
             "name": "Test (llff)",
             "type": "python",
@@ -84,7 +84,7 @@
                 "+experiment=llff_test",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                "checkpointing.load=outputs/LLFF_training/checkpoints/2000.ckpt",
                 // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
         },
