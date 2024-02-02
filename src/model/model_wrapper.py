@@ -221,17 +221,17 @@ class ModelWrapper(LightningModule):
                 depth_mode="depth",
             )
 
-        if True:
-            ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
-            export_ply(
-                batch["context"]["extrinsics"][0, 0],
-                gaussians.means[0],
-                visualization_dump["scales"][0],
-                visualization_dump["rotations"][0],
-                gaussians.harmonics[0],
-                gaussians.opacities[0],
-                ply_path,
-            )
+        # if True:
+        #     ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
+        #     export_ply(
+        #         batch["context"]["extrinsics"][0, 0],
+        #         gaussians.means[0],
+        #         visualization_dump["scales"][0],
+        #         visualization_dump["rotations"][0],
+        #         gaussians.harmonics[0],
+        #         gaussians.opacities[0],
+        #         ply_path,
+        #     )
 
         target_gt = batch["target"]["image"]
         psnr_probabilistic = compute_psnr(

@@ -19,25 +19,26 @@ def get_projection_matrix(
     far: Float[Tensor, " batch"],
     fov_x: Float[Tensor, " batch"],
     fov_y: Float[Tensor, " batch"],
+    intrinsics: Float[Tensor, "batch 3 3"]
 ) -> Float[Tensor, "batch 4 4"]:
     """Maps points in the viewing frustum to (-1, 1) on the X/Y axes and (0, 1) on the Z
     axis. Differs from the OpenGL version in that Z doesn't have range (-1, 1) after
     transformation and that Z is flipped.
     """
     tan_fov_x = (0.5 * fov_x).tan()
-    tan_fov_y = (0.5 * fov_y).tan()
+    tan_fov_y = (0.5 * fov_y).tan()  
 
     top = tan_fov_y * near
     bottom = -top
     right = tan_fov_x * near
-    left = -right
+    left = -right          #算法在这里默认了中心对称
 
     (b,) = near.shape
     result = torch.zeros((b, 4, 4), dtype=torch.float32, device=near.device)
-    result[:, 0, 0] = 2 * near / (right - left)
-    result[:, 1, 1] = 2 * near / (top - bottom)
-    result[:, 0, 2] = (right + left) / (right - left)
-    result[:, 1, 2] = (top + bottom) / (top - bottom)
+    result[:, 0, 0] = 2 * near *intrinsics[0,0,0]
+    result[:, 1, 1] = 2 * near * intrinsics[0,1,1]
+    result[:, 0, 2] = 2*intrinsics[0,0,2]-1
+    result[:, 1, 2] = 2*intrinsics[0,1,2]-1
     result[:, 3, 2] = 1
     result[:, 2, 2] = far / (far - near)
     result[:, 2, 3] = -(far * near) / (far - near)
@@ -81,7 +82,7 @@ def render_cuda(
     tan_fov_x = (0.5 * fov_x).tan()
     tan_fov_y = (0.5 * fov_y).tan()
 
-    projection_matrix = get_projection_matrix(near, far, fov_x, fov_y)
+    projection_matrix = get_projection_matrix(near, far, fov_x, fov_y,intrinsics)
     projection_matrix = rearrange(projection_matrix, "b i j -> b j i")
     view_matrix = rearrange(extrinsics.inverse(), "b i j -> b j i")
     full_projection = view_matrix @ projection_matrix
@@ -114,7 +115,7 @@ def render_cuda(
 
         row, col = torch.triu_indices(3, 3)
 
-        image, radii, _, = rasterizer(
+        image, radii,  = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,

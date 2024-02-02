@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from turtle import width
 import numpy as np
 import imageio
 import torch
@@ -60,8 +61,9 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (176, 240)
-        out_w = 240
+        self.image_size = (168, 224) #训练的时候
+        # self.image_size = (378, 504) #测试的时候
+        out_w = 224
         self.ratio = out_w / 504
         self.h, self.w = int(self.ratio*378), int(out_w)
         
@@ -201,18 +203,28 @@ class LLFFTestDataset(IterableDataset):
             src_rgbs = np.stack(src_rgbs, axis=0)
             src_cameras = np.stack(src_cameras, axis=0)
             src_intrinsics, src_extrinsics = np.stack(src_intrinsics, axis=0), np.stack(src_extrinsics, axis=0)
-            # if self.mode == 'train' and random.randint(1, 100) < 75:
-            #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = random_crop(rgb,camera,src_rgbs,src_cameras, size=self.image_size, center=None)
-            # elif self.mode == 'train':
-            #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
-            rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
-            
-            src_extrinsics = torch.from_numpy(src_extrinsics).float()
+            if self.mode == 'train' and random.randint(1, 100) < 75:
+                #(168, 224)#(378,504)
+                # low=168*224//504+2
+                # high=370
+                # crop_h = np.random.randint(low, high) #74~378
+                # crop_h = crop_h + 1 if crop_h % 2 == 1 else crop_h
+                # crop_w = int(168*224 / crop_h)
+                # crop_w = crop_w + 1 if crop_w % 2 == 1 else crop_w
+                # self.image_size=(crop_h,crop_w)
+                rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics,center_h,center_w = random_crop(rgb,camera,src_rgbs,src_cameras, size=self.image_size, center=None)
+                src_intrinsics = self.normalize_intrinsics_1(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size,center_h,center_w)
+                intrinsics = self.normalize_intrinsics_1(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size,center_h,center_w)
+                # print("crop")
+            elif self.mode == 'train':
+                rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
+                center_h=0.5
+                center_w=0.5
+                src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size,center_h,center_w)
+                intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size,center_h,center_w)
+                # print("resize")
             extrinsics = torch.from_numpy(render_pose).unsqueeze(0).float()
-            
-            src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size)
-            intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size)
-
+            src_extrinsics = torch.from_numpy(src_extrinsics).float()
             depth_range = torch.tensor([depth_range[0] * 0.9, depth_range[1] * 1.5])
 
             # Resize the world to make the baseline 1.
@@ -249,7 +261,7 @@ class LLFFTestDataset(IterableDataset):
                     },"scene":scene}
             yield apply_crop_shim(example, tuple(self.image_size))
         
-    def normalize_intrinsics(self, intrinsics, img_size):
+    def normalize_intrinsics(self, intrinsics, img_size,center_h,center_w):
         h, w = img_size
         # 归一化内参矩阵
         intrinsics_normalized = intrinsics.clone()
@@ -257,4 +269,13 @@ class LLFFTestDataset(IterableDataset):
         intrinsics_normalized[:, 1, 1] /= h
         intrinsics_normalized[:, 0, 2] = 0.5
         intrinsics_normalized[:, 1, 2] = 0.5
+        return intrinsics_normalized
+    def normalize_intrinsics_1(self, intrinsics, img_size,center_h,center_w):
+        h, w = img_size
+        # 归一化内参矩阵
+        intrinsics_normalized = intrinsics.clone().float()
+        intrinsics_normalized[:, 0, 0] /= w
+        intrinsics_normalized[:, 1, 1] /= h
+        intrinsics_normalized[:, 0, 2] /= w
+        intrinsics_normalized[:, 1, 2] /= h
         return intrinsics_normalized

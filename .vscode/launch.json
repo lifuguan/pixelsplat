@@ -20,7 +20,7 @@
                 "data_loader.train.batch_size=1",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "7",
+                "CUDA_VISIBLE_DEVICES": "0",
             }
         },
         {
@@ -37,10 +37,10 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4",
+                "CUDA_VISIBLE_DEVICES": "0",
             }
         },
         {
@@ -58,16 +58,17 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                // "checkpointing.load=outputs/2024-01-17/16-30-50/checkpoints/8000.ckpt",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                // "checkpointing.load=/home/gyy/Downloads/pixelsplat/src/checkpoints/re10k.ckpt",
+                // "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt",
+                "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-02/13-31-30/checkpoints/epoch_37_step_3000.ckpt"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4",
+                "CUDA_VISIBLE_DEVICES": "0",
             }
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "1",
+                "CUDA_VISIBLE_DEVICES": "0",
             },
             "name": "Test (llff)",
             "type": "python",
@@ -84,7 +85,7 @@
                 "+experiment=llff_test",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/2024-01-22/18-31-29/checkpoints/2000.ckpt",
+                "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024_01_24/14_10_15/checkpoints/3000.ckpt",
                 // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
         },

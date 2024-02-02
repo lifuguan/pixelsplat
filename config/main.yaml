@@ -40,7 +40,7 @@ optimizer:
 
 checkpointing:
   load: null
-  every_n_train_steps: 500
+  every_n_train_steps: 1000
   save_top_k: -1
 
 train:
@@ -53,6 +53,6 @@ test:
 seed: 111123
 
 trainer:
-  max_steps: -1
+  max_steps: 32000
   val_check_interval: 10
   gradient_clip_val: 0.5

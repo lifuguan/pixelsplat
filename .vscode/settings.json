@@ -34,5 +34,6 @@
         "**/.ruff_cache/**": true,
         "**/venv/**": true,
         "**/datasets": true,
-    }
+    },
+    "python.pythonPath": "/home/gyy/anaconda3/envs/splat/bin/python"
 }
