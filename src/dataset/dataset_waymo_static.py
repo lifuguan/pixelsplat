@@ -33,15 +33,21 @@ import random
 from .base_utils import downsample_gaussian_blur
     
 
-class LLFFTestDataset(IterableDataset):
+class WaymoStaticDataset(IterableDataset):
+    ORIGINAL_SIZE = [[1280, 1920], [1280, 1920], [1280, 1920], [884, 1920], [884, 1920]]
+    OPENCV2DATASET = np.array(
+        [[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]]
+    )
+    
     def __init__(self, args, mode, step_tacker, **kwargs):
-        self.folder_path = os.path.join('data/ibrnet/eval', 'nerf_llff_data/')
-        self.dataset_name = 'llff'
+        self.folder_path = os.path.join('data/waymo/processed/training')
+        self.dataset_name = 'waymo'
         self.pose_noise_level = 0
 
         self.args = args
         self.mode = mode  # train / test / validation
-        self.num_source_views = args.view_sampler.num_context_views
+        # self.num_source_views = args.view_sampler.num_context_views
+        self.num_source_views = 5
         self.llffhold = 8
         self.random_crop = False
         self.rectify_inplane_rotation = False
@@ -55,17 +61,14 @@ class LLFFTestDataset(IterableDataset):
         self.train_intrinsics = []
         self.train_poses = []
         self.train_rgb_files = []
-        self.idx_to_node_id_list = []
-        self.node_id_to_idx_list = []
-        self.train_view_graphs = []
 
         self.image_size = (176, 240)
-        out_w = 240
-        self.ratio = out_w / 504
-        self.h, self.w = int(self.ratio*378), int(out_w)
-        
+        self.ratio = self.image_size[1] / 1920
         all_scenes = os.listdir(self.folder_path)
         
+        ############     Wamyo Parameters     ############
+        self.num_cams, self.camera_list =1, [0]
+        self.start_timestep, self.end_timestep = 0, 198
         
         if len(args.scene) > 0:
             self.scenes = args.scene
@@ -76,47 +79,116 @@ class LLFFTestDataset(IterableDataset):
         print(f'[INFO] num scenes: {len(self.scenes)}')
         for i, scene in enumerate(self.scenes):
             scene_path = os.path.join(self.folder_path, scene)
-            factor = 8 #4
-            _, poses, bds, render_poses, i_test, rgb_files = load_llff_data(scene_path, load_imgs=False, factor=factor)
             
-            near_depth = np.min(bds)
-            far_depth = np.max(bds)
-            intrinsics, c2w_mats = batch_parse_llff_poses(poses)
+            rgb_files = []
+            for t in range(self.start_timestep, self.end_timestep):
+                for cam_idx in self.camera_list:
+                    rgb_files.append(os.path.join(scene_path, "images", f"{t:03d}_{cam_idx}.jpg"))
             
-            i_test = np.arange(poses.shape[0])[::self.llffhold] if mode != 'eval_pose' else []
-            i_train = np.array([j for j in np.arange(int(poses.shape[0])) if
+            intrinsics, c2w_mats = self.load_calibrations(scene_path)
+            
+            
+            near_depth = 0.1
+            far_depth = 100.0
+            
+            i_test = np.arange(len(rgb_files))[::self.llffhold] if mode != 'eval_pose' else []
+            i_train = np.array([j for j in np.arange(len(rgb_files)) if
                                 (j not in i_test and j not in i_test)])
-
-            # pose_initializer = PoseInitializer(
-            #     data_path=scene_path,
-            #     image_ids=i_train,
-            #     load_external=True,
-            #     args=args
-            # )
-            # self.train_view_graphs.append(pose_initializer.view_graph)
-            
-            idx_to_node_id, node_id_to_idx = {}, {}
-            for j in range(i_train.shape[0]):
-                idx_to_node_id[j] = i_train[j]
-                node_id_to_idx[i_train[j]] = j
-            self.idx_to_node_id_list.append(idx_to_node_id)
-            self.node_id_to_idx_list.append(node_id_to_idx)
 
             if mode == 'train':
                 i_render = i_train
             else:
                 i_render = i_test
 
-            self.train_intrinsics.append(intrinsics[i_train])
+            
+            self.train_intrinsics.append([intrinsics] * len(i_train))
             self.train_poses.append(c2w_mats[i_train])
             self.train_rgb_files.append(np.array(rgb_files)[i_train].tolist())
             
             num_render = len(i_render)
             self.render_rgb_files.extend(np.array(rgb_files)[i_render].tolist())
-            self.render_intrinsics.extend([intrinsics_ for intrinsics_ in intrinsics[i_render]])
+            self.render_intrinsics.extend([intrinsics] * num_render)
             self.render_poses.extend([c2w_mat for c2w_mat in c2w_mats[i_render]])
             self.render_depth_range.extend([[near_depth, far_depth]]*num_render)
             self.render_train_set_ids.extend([i]*num_render)
+
+
+    def load_calibrations(self, scene_path):
+        """
+        Load the camera intrinsics, extrinsics, timestamps, etc.
+        Compute the camera-to-world matrices, ego-to-world matrices, etc.
+        """
+        # to store per-camera intrinsics and extrinsics
+        _intrinsics = []
+        cam_to_egos = []
+        for i in range(self.num_cams):
+            # load camera intrinsics
+            # 1d Array of [f_u, f_v, c_u, c_v, k{1, 2}, p{1, 2}, k{3}].
+            # ====!! we did not use distortion parameters for simplicity !!====
+            # to be improved!!
+            intrinsic = np.loadtxt(
+                os.path.join(scene_path, "intrinsics", f"{i}.txt")
+            )
+            fx, fy, cx, cy = intrinsic[0], intrinsic[1], intrinsic[2], intrinsic[3]
+            # scale intrinsics w.r.t. load size
+            fx, fy = (
+                fx * self.image_size[1] / self.ORIGINAL_SIZE[i][1],
+                fy * self.image_size[0] / self.ORIGINAL_SIZE[i][0],
+            )
+            cx, cy = (
+                cx * self.image_size[1] / self.ORIGINAL_SIZE[i][1],
+                cy * self.image_size[0] / self.ORIGINAL_SIZE[i][0],
+            )
+            intrinsic = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+            _intrinsics.append(intrinsic)
+
+            # load camera extrinsics
+            cam_to_ego = np.loadtxt(
+                os.path.join(scene_path, "extrinsics", f"{i}.txt")
+            )
+            # because we use opencv coordinate system to generate camera rays,
+            # we need a transformation matrix to covnert rays from opencv coordinate
+            # system to waymo coordinate system.
+            # opencv coordinate system: x right, y down, z front
+            # waymo coordinate system: x front, y left, z up
+            cam_to_egos.append(cam_to_ego @ self.OPENCV2DATASET)
+
+        # compute per-image poses and intrinsics
+        cam_to_worlds, ego_to_worlds = [], []
+        intrinsics, cam_ids = [], []
+        # ===! for waymo, we simplify timestamps as the time indices
+        timestamps, timesteps = [], []
+
+        # we tranform the camera poses w.r.t. the first timestep to make the translation vector of
+        # the first ego pose as the origin of the world coordinate system.
+        ego_to_world_start = np.loadtxt(
+            os.path.join(scene_path, "ego_pose", f"{self.start_timestep:03d}.txt")
+        )
+        for t in range(self.start_timestep, self.end_timestep):
+            ego_to_world_current = np.loadtxt(
+                os.path.join(scene_path, "ego_pose", f"{t:03d}.txt")
+            )
+            # compute ego_to_world transformation
+            ego_to_world = np.linalg.inv(ego_to_world_start) @ ego_to_world_current
+            ego_to_worlds.append(ego_to_world)
+            for cam_id in self.camera_list:
+                cam_ids.append(cam_id)
+                # transformation:
+                #   (opencv_cam -> waymo_cam -> waymo_ego_vehicle) -> current_world
+                cam2world = ego_to_world @ cam_to_egos[cam_id]
+                cam_to_worlds.append(cam2world)
+                intrinsics.append(_intrinsics[cam_id])
+                # ===! we use time indices as the timestamp for waymo dataset for simplicity
+                # ===! we can use the actual timestamps if needed
+                # to be improved
+                timestamps.append(t - self.start_timestep)
+                timesteps.append(t - self.start_timestep)
+
+        intrinsics = np.stack(intrinsics, axis=0)
+        cam_to_worlds = np.stack(cam_to_worlds, axis=0)
+        return intrinsic, cam_to_worlds
+
+
 
     def get_data_one_batch(self, idx, nearby_view_id=None):
         self.nearby_view_id = nearby_view_id
@@ -128,11 +200,7 @@ class LLFFTestDataset(IterableDataset):
     def __len__(self):
         return len(self.render_rgb_files)
 
-    def shuffle(self, lst: list) -> list:
-        indices = torch.randperm(len(lst))
-        return [lst[x] for x in indices]
     def __iter__(self):
-        self.shuffle(self.render_rgb_files)
         for idx in range(len(self.render_rgb_files)):
             rgb_file = self.render_rgb_files[idx]
             scene, img_idx = rgb_file.split("/")[4], rgb_file[-7:-4]
@@ -145,9 +213,6 @@ class LLFFTestDataset(IterableDataset):
             train_rgb_files = self.train_rgb_files[train_set_id]
             train_poses = self.train_poses[train_set_id]
             train_intrinsics = self.train_intrinsics[train_set_id]
-            # view_graph = self.train_view_graphs[train_set_id]
-            idx_to_node_id = self.idx_to_node_id_list[train_set_id]
-            node_id_to_idx = self.node_id_to_idx_list[train_set_id]
 
             img_size = rgb.shape[:2]
             camera = np.concatenate((list(img_size), intrinsics.flatten(),
@@ -204,7 +269,7 @@ class LLFFTestDataset(IterableDataset):
             #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = random_crop(rgb,camera,src_rgbs,src_cameras, size=self.image_size, center=None)
             # elif self.mode == 'train':
             #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
-            rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
+            rgb, _, src_rgbs, _, _, _ = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
             
             src_extrinsics = torch.from_numpy(src_extrinsics).float()
             extrinsics = torch.from_numpy(render_pose).unsqueeze(0).float()

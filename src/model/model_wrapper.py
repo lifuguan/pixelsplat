@@ -221,7 +221,7 @@ class ModelWrapper(LightningModule):
                 depth_mode="depth",
             )
 
-        if True:
+        if False:
             ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
             export_ply(
                 batch["context"]["extrinsics"][0, 0],

@@ -126,8 +126,8 @@ class EpipolarTransformer(nn.Module):
         # Run the transformer.
         kv = rearrange(features, "b v c h w -> (b v h w) () c")
         features = self.transformer.forward(
-            kv,
-            rearrange(q, "b v () r s c -> (b v r) s c"),
+            kv,     # 这里是以自己视角作为query
+            rearrange(q, "b v () r s c -> (b v r) s c"),    # 以epip feature作为key / value
             b=b,
             v=v,
             h=h // self.cfg.downscale,
