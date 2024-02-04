@@ -61,9 +61,9 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (168, 224) #训练的时候
+        self.image_size = (176, 240) #训练的时候
         # self.image_size = (378, 504) #测试的时候
-        out_w = 224
+        out_w = 240
         self.ratio = out_w / 504
         self.h, self.w = int(self.ratio*378), int(out_w)
         
@@ -120,6 +120,7 @@ class LLFFTestDataset(IterableDataset):
             self.render_poses.extend([c2w_mat for c2w_mat in c2w_mats[i_render]])
             self.render_depth_range.extend([[near_depth, far_depth]]*num_render)
             self.render_train_set_ids.extend([i]*num_render)
+
 
     def get_data_one_batch(self, idx, nearby_view_id=None):
         self.nearby_view_id = nearby_view_id
@@ -216,7 +217,7 @@ class LLFFTestDataset(IterableDataset):
                 src_intrinsics = self.normalize_intrinsics_1(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size,center_h,center_w)
                 intrinsics = self.normalize_intrinsics_1(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size,center_h,center_w)
                 # print("crop")
-            elif self.mode == 'train':
+            else:
                 rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
                 center_h=0.5
                 center_w=0.5
