@@ -62,7 +62,7 @@ class WaymoStaticDataset(IterableDataset):
         self.train_poses = []
         self.train_rgb_files = []
 
-        self.image_size = (176, 240)
+        self.image_size = (352, 496)
         self.ratio = self.image_size[1] / 1920
         all_scenes = os.listdir(self.folder_path)
         

@@ -40,6 +40,7 @@ from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 
+import copy
 from pathlib import Path
 from .ply_export import export_ply
 
@@ -71,6 +72,31 @@ class TrajectoryFn(Protocol):
     ]:
         pass
 
+def random_crop(data,size=[160,224] ,center=None):
+    _,_,_,h, w = data['context']['image'].shape
+    # size=torch.from_numpy(size)
+    batch = copy.deepcopy(data)
+    out_h, out_w = size[0], size[1]
+
+    if center is not None:
+        center_h, center_w = center
+    else:
+        center_h = np.random.randint(low=out_h // 2 + 1, high=h - out_h // 2 - 1)
+        center_w = np.random.randint(low=out_w // 2 + 1, high=w - out_w // 2 - 1)
+    batch['context']['image'] = batch['context']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
+    batch['target']['image'] = batch['target']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
+
+    batch['context']['intrinsics'][:,:,0,0]=batch['context']['intrinsics'][:,:,0,0]*w/out_w
+    batch['context']['intrinsics'][:,:,1,1]=batch['context']['intrinsics'][:,:,1,1]*h/out_h
+    batch['context']['intrinsics'][:,:,0,2]=(batch['context']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
+    batch['context']['intrinsics'][:,:,1,2]=(batch['context']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
+
+    batch['target']['intrinsics'][:,:,0,0]=batch['target']['intrinsics'][:,:,0,0]*w/out_w
+    batch['target']['intrinsics'][:,:,1,1]=batch['target']['intrinsics'][:,:,1,1]*h/out_h
+    batch['target']['intrinsics'][:,:,0,2]=(batch['target']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
+    batch['target']['intrinsics'][:,:,1,2]=(batch['target']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
+
+    return batch
 
 class ModelWrapper(LightningModule):
     logger: Optional[WandbLogger]
@@ -107,7 +133,7 @@ class ModelWrapper(LightningModule):
         self.data_shim = get_data_shim(self.encoder)
         self.losses = nn.ModuleList(losses)
         
-        # self.automatic_optimization = False
+        self.automatic_optimization = False
         
         # This is used for testing.
         self.benchmarker = Benchmarker()
@@ -129,11 +155,10 @@ class ModelWrapper(LightningModule):
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
         _, _, _, h, w = batch["target"]["image"].shape
-
-        # Run the model.
-        # gaussians = self.encoder(batch["context"], self.global_step, False)
-        start_time = time.time()
+        opt = self.optimizers()
+        opt.zero_grad()
         
+        start_time = time.time()
         device = batch["context"]["image"].device
         str_current_idx = [str(item) for item in batch["context"]["index"][0].cpu().numpy()]
         unused_indexs = set(list(self.last_ref_gaussians.keys())) - set(str_current_idx) 
@@ -142,39 +167,74 @@ class ModelWrapper(LightningModule):
                 del self.last_ref_gaussians[unused_idx]
 
         index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
-        # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
         gaussians = None
         # Run the model.
-        for i in range(len(index_sort)-1):
-            # index_sort[i] 代表会重新进行排序，可能需要重新训练
-            if str_current_idx[index_sort[i]] in self.last_ref_gaussians.keys(): # 如果已经计算过，则直接使用
-                tmp_gaussians = self.last_ref_gaussians[str_current_idx[index_sort[i]]].detach()
-            else:
-                tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1], device)
-                tmp_gaussians = self.encoder(tmp_batch, batch_idx, False)   # 计算当前帧的gaussian
-                self.last_ref_gaussians[str_current_idx[index_sort[i]]] = tmp_gaussians # 保存
-                
-            if gaussians is None:
-                gaussians: Gaussians = tmp_gaussians
-            else:
-                gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-                gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-                gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-                gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
-            
-            
-            
-        output = self.decoder.forward(
-            gaussians,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-            depth_mode=self.train_cfg.depth_mode,
-        )
-        target_gt = batch["target"]["image"]
+        with torch.no_grad():
+            for i in range(len(index_sort)-1):
+                # index_sort[i] 代表会重新进行排序，可能需要重新训练
+                if str_current_idx[index_sort[i]] in self.last_ref_gaussians.keys(): # 如果已经计算过，则直接使用
+                    tmp_gaussians = self.last_ref_gaussians[str_current_idx[index_sort[i]]].detach()
+                else:
+                    tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1], device)
+                    tmp_gaussians = self.encoder(tmp_batch, batch_idx, False)   # 计算当前帧的gaussian
+                    self.last_ref_gaussians[str_current_idx[index_sort[i]]] = tmp_gaussians # 保存
+                    
+                if gaussians is None:
+                    gaussians: Gaussians = tmp_gaussians
+                else:
+                    gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+                    gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+                    gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+                    gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+            output = self.decoder.forward(
+                gaussians,
+                batch["target"]["extrinsics"],
+                batch["target"]["intrinsics"],
+                batch["target"]["near"],
+                batch["target"]["far"],
+                (h, w),
+                depth_mode=self.train_cfg.depth_mode,
+            )
+            target_gt = batch["target"]["image"]
 
+        out_h=176
+        out_w=240
+        center_h = np.random.randint(low=0 , high=h  )
+        center_w = np.random.randint(low=0 , high=w  )
+        if center_h<=out_h//2:
+            center_h=out_h//2
+        elif center_h>=(h - out_h // 2):
+           center_h= h - out_h // 2
+        if center_w<=out_w // 2:
+            center_w=out_w//2
+        elif center_w>=w - out_w // 2:
+            center_w=w-out_w//2
+        data_crop=random_crop(batch,size=[out_h,out_w],center=(int(center_h),int(center_w)))
+
+        data_crop: BatchedExample = self.data_shim(data_crop)
+        _, _, _, h, w = data_crop["target"]["image"].shape
+        for i in range(data_crop["context"]["image"].shape[1] - 1):
+                tmp_batch = self.batch_cut(data_crop["context"],i, i+1, device)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+                if i == 0:
+                    gaussians: Gaussians = tmp_gaussians
+                else:
+                    gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+                    gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+                    gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+                    gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+            
+                output_1 = self.decoder.forward(
+                    gaussians,
+                    data_crop["target"]["extrinsics"],
+                    data_crop["target"]["intrinsics"],
+                    data_crop["target"]["near"],
+                    data_crop["target"]["far"],
+                    (h, w),
+                    depth_mode=self.train_cfg.depth_mode,
+                )
+        output.color.requires_grad_(True)
+        
         # Compute metrics.
         psnr_probabilistic = compute_psnr(
             rearrange(target_gt, "b v c h w -> (b v) c h w"),
@@ -189,7 +249,11 @@ class ModelWrapper(LightningModule):
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
-
+        self.log("loss/total", total_loss)
+        total_loss.backward()
+        rgb_pred_grad=output.color.grad
+        output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
+        opt.step()
         end_time = time.time()
         if self.global_rank == 0:
             print(
