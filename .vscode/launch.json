@@ -79,8 +79,9 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                // "checkpointing.load=outputs/2024-01-17/16-30-50/checkpoints/8000.ckpt",
-                "checkpointing.load=outputs/2024-01-22/20-43-46/checkpoints/3500.ckpt",
+                // "checkpointing.load=outputs/waymo/12000.ckpt"
+                "checkpointing.load=outputs/llff_generalized/checkpoints/3500.ckpt",  // 泛化权重
+
             ],
             "env": {
                 "CUDA_VISIBLE_DEVICES": "7",
@@ -113,7 +114,7 @@
             "env": {
                 "CUDA_VISIBLE_DEVICES": "4",
             },
-            "name": "Test (wamyo)",
+            "name": "Test (waymo)",
             "type": "python",
             "request": "launch",
             "module": "src.main",
@@ -128,7 +129,7 @@
                 "+experiment=waymo",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/wamyo/checkpoints/5000.ckpt",
+                "checkpointing.load=outputs/waymo/12000.ckpt",
                 // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
         },

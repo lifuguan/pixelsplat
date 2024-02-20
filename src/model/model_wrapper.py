@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable
 
+import time
+import numpy as np
 import moviepy.editor as mpy
 import torch
 import wandb
@@ -104,20 +106,24 @@ class ModelWrapper(LightningModule):
         self.decoder = decoder
         self.data_shim = get_data_shim(self.encoder)
         self.losses = nn.ModuleList(losses)
-
+        
+        # self.automatic_optimization = False
+        
         # This is used for testing.
         self.benchmarker = Benchmarker()
 
         self.current_step = 0
+        self.last_ref_gaussians = {}
+        
 
-    def batch_cut(self, batch, i):
+    def batch_cut(self, batch, idx1, idx2, device=None):
         return {
-            'extrinsics': batch['extrinsics'][:,i:i+2,:,:],
-            'intrinsics': batch['intrinsics'][:,i:i+2,:,:],
-            'image': batch['image'][:,i:i+2,:,:,:],
-            'near': batch['near'][:,i:i+2],
-            'far': batch['far'][:,i:i+2],
-            'index': batch['index'][:,i:i+2],
+            'extrinsics': torch.cat([batch['extrinsics'][:,idx1:idx1+1,:,:], batch['extrinsics'][:,idx2:idx2+1,:,:]], dim=1).to(device=device),
+            'intrinsics': torch.cat([batch['intrinsics'][:,idx1:idx1+1,:,:], batch['intrinsics'][:,idx2:idx2+1,:,:]], dim=1).to(device=device),
+            'image': torch.cat([batch['image'][:,idx1:idx1+1,...], batch['image'][:,idx2:idx2+1,...]], dim=1).to(device=device),
+            'near': torch.cat([batch['near'][:,idx1:idx1+1], batch['near'][:,idx2:idx2+1]], dim=1).to(device=device),
+            'far': torch.cat([batch['far'][:,idx1:idx1+1], batch['far'][:,idx2:idx2+1]], dim=1).to(device=device),
+            'index': torch.cat([batch['index'][:,idx1:idx1+1], batch['index'][:,idx2:idx2+1]], dim=1).to(device=device),
         }
         
     def training_step(self, batch, batch_idx):
@@ -126,17 +132,36 @@ class ModelWrapper(LightningModule):
 
         # Run the model.
         # gaussians = self.encoder(batch["context"], self.global_step, False)
+        start_time = time.time()
         
-        for i in range(batch["context"]["image"].shape[1] - 1):
-            tmp_batch = self.batch_cut(batch["context"],i)
-            tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
-            if i == 0:
+        device = batch["context"]["image"].device
+        str_current_idx = [str(item) for item in batch["context"]["index"][0].cpu().numpy()]
+        unused_indexs = set(list(self.last_ref_gaussians.keys())) - set(str_current_idx) 
+        if len(unused_indexs) > 0:
+            for unused_idx in tuple(unused_indexs):
+                del self.last_ref_gaussians[unused_idx]
+
+        index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
+        # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
+        gaussians = None
+        # Run the model.
+        for i in range(len(index_sort)-1):
+            # index_sort[i] 代表会重新进行排序，可能需要重新训练
+            if str_current_idx[index_sort[i]] in self.last_ref_gaussians.keys(): # 如果已经计算过，则直接使用
+                tmp_gaussians = self.last_ref_gaussians[str_current_idx[index_sort[i]]].detach()
+            else:
+                tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1], device)
+                tmp_gaussians = self.encoder(tmp_batch, batch_idx, False)   # 计算当前帧的gaussian
+                self.last_ref_gaussians[str_current_idx[index_sort[i]]] = tmp_gaussians # 保存
+                
+            if gaussians is None:
                 gaussians: Gaussians = tmp_gaussians
             else:
                 gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
                 gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
                 gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
                 gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+            
             
             
         output = self.decoder.forward(
@@ -165,13 +190,16 @@ class ModelWrapper(LightningModule):
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
 
+        end_time = time.time()
         if self.global_rank == 0:
             print(
                 f"train step {self.global_step}; "
                 f"scene = {batch['scene']}; "
                 f"context = {batch['context']['index'].tolist()}; "
                 f"loss = {total_loss:.6f}; "
-                f"psnr = {psnr_probabilistic.mean():.2f}"
+                f"psnr = {psnr_probabilistic.mean():.2f}; "
+                f"time = {end_time - start_time:.2f}s; "
+                f"unused indexs: {tuple(unused_indexs)}"
             )
 
         # Tell the data loader processes about the current step.

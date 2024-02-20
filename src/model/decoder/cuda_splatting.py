@@ -108,7 +108,6 @@ def render_cuda(
             sh_degree=degree,
             campos=extrinsics[i, :3, 3],
             prefiltered=False,  # This matches the original usage.
-            debug=False,
         )
         rasterizer = GaussianRasterizer(settings)
 

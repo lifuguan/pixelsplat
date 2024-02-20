@@ -114,7 +114,6 @@ def train(cfg_dict: DictConfig):
         get_losses(cfg.loss),
         step_tracker,
     )
-    checkpoint = torch.load(checkpoint_path)
     # model_wrapper.load_state_dict(checkpoint['state_dict'])
     data_module = DataModule(cfg.dataset, cfg.data_loader, step_tracker)
 
