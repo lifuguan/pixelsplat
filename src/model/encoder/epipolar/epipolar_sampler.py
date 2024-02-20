@@ -86,7 +86,7 @@ class EpipolarSampler(nn.Module):
         xy_max = projection["xy_max"].nan_to_num(posinf=0, neginf=0) 
         xy_max = xy_max * projection["overlaps_image"][..., None]
         xy_max = rearrange(xy_max, "b v ov r xy -> b v ov r () xy")
-        xy_sample = xy_min + sample_depth * (xy_max - xy_min)
+        xy_sample = xy_min + sample_depth * (xy_max - xy_min)  #xy_min 是极线起点
 
         # The samples' shape is (batch, view, other_view, ...). However, before the
         # transpose, the view dimension refers to the view from which the ray is cast,
@@ -102,7 +102,7 @@ class EpipolarSampler(nn.Module):
             mode="bilinear",
             padding_mode="zeros",
             align_corners=False,
-        )
+        )              #取出极线上32个depth点对应的feature
         samples = rearrange(
             samples, "(b v) c (ov r s) () -> b v ov r s c", b=b, v=v, ov=v - 1, s=s
         )

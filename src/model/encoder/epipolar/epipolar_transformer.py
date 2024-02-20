@@ -100,7 +100,7 @@ class EpipolarTransformer(nn.Module):
             depths = get_depth(
                 rearrange(sampling.origins, "b v r xyz -> b v () r () xyz"),
                 rearrange(sampling.directions, "b v r xyz -> b v () r () xyz"),
-                sampling.xy_sample,
+                sampling.xy_sample,   #uv坐标系 
                 rearrange(collect(extrinsics), "b v ov i j -> b v ov () () i j"),
                 rearrange(collect(intrinsics), "b v ov i j -> b v ov () () i j"),
             )
@@ -108,12 +108,12 @@ class EpipolarTransformer(nn.Module):
             # Clip the depths. This is necessary for edge cases where the context views
             # are extremely close together (or possibly oriented the same way).
             depths = depths.maximum(near[..., None, None, None])
-            depths = depths.minimum(far[..., None, None, None])
+            depths = depths.minimum(far[..., None, None, None])  #缺乏尺度的detph
             depths = depth_to_relative_disparity(
                 depths,
                 rearrange(near, "b v -> b v () () ()"),
                 rearrange(far, "b v -> b v () () ()"),
-            )
+            )  #归一化
             depths = self.depth_encoding(depths[..., None])
             q = sampling.features + depths
         else:

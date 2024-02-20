@@ -56,20 +56,23 @@ class DepthPredictorMonocular(nn.Module):
         offset = self.to_offset(offset_raw)
 
         # Sample from the depth distribution.
-        index, pdf_i = self.sampler.sample(pdf, deterministic, gaussians_per_pixel)
+        index, pdf_i = self.sampler.sample(pdf, deterministic, gaussians_per_pixel)#以pdf分布 选gaussians_per_pixel个点
+
+
         offset = self.sampler.gather(index, offset)
+
 
         # Convert the sampled bucket and offset to a depth.
         relative_disparity = (index + offset) / s
         depth = relative_disparity_to_depth(
             relative_disparity,
             rearrange(near, "b v -> b v () () ()"),
-            rearrange(far, "b v -> b v () () ()"),
+            rearrange(far, "b v -> b v () () ()"),  #相对归一化转为depth
         )
 
         # Compute opacity from PDF.
         if self.use_transmittance:
-            partial = pdf.cumsum(dim=-1)
+            partial = pdf.cumsum(dim=-1)  #累加
             partial = torch.cat(
                 (torch.zeros_like(partial[..., :1]), partial[..., :-1]), dim=-1
             )

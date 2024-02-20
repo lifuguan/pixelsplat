@@ -27,13 +27,13 @@ def get_projection_matrix(
     """
     tan_fov_x = (0.5 * fov_x).tan()
     tan_fov_y = (0.5 * fov_y).tan()  
-
     top = tan_fov_y * near
     bottom = -top
     right = tan_fov_x * near
     left = -right          #算法在这里默认了中心对称
 
     (b,) = near.shape
+    near=near
     result = torch.zeros((b, 4, 4), dtype=torch.float32, device=near.device)
     result[:, 0, 0] = 2 * near *intrinsics[0,0,0]
     result[:, 1, 1] = 2 * near * intrinsics[0,1,1]

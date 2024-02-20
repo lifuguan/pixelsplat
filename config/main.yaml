@@ -40,7 +40,7 @@ optimizer:
 
 checkpointing:
   load: null
-  every_n_train_steps: 1000
+  every_n_train_steps: 5000
   save_top_k: -1
 
 train:
