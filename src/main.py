@@ -57,6 +57,7 @@ def train(cfg_dict: DictConfig):
         logger = WandbLogger(
             project=cfg_dict.wandb.project,
             mode=cfg_dict.wandb.mode,
+            entity=cfg_dict.wandb.entity,
             name=f"{cfg_dict.wandb.name} ({output_dir.parent.name}/{output_dir.name})",
             tags=cfg_dict.wandb.get("tags", None),
             log_model="all",
