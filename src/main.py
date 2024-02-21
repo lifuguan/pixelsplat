@@ -55,6 +55,7 @@ def train(cfg_dict: DictConfig):
     callbacks = []
     if cfg_dict.wandb.mode != "disabled":
         logger = WandbLogger(
+            entity=cfg_dict.wandb.entity,
             project=cfg_dict.wandb.project,
             mode=cfg_dict.wandb.mode,
             name=f"{cfg_dict.wandb.name} ({output_dir.parent.name}/{output_dir.name})",

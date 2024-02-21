@@ -6,8 +6,8 @@ defaults:
   - loss: [mse, density]
 
 wandb:
-  project: pixelsplat
-  entity: your-entity-here
+  project: llff_test
+  entity: lifuguan
   name: placeholder
   mode: disabled
 
@@ -36,7 +36,7 @@ data_loader:
 
 optimizer:
   lr: 1.5e-4
-  warm_up_steps: 2000
+  warm_up_steps: 100
 
 checkpointing:
   load: null

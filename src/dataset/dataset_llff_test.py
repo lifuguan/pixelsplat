@@ -41,7 +41,8 @@ class LLFFTestDataset(IterableDataset):
 
         self.args = args
         self.mode = mode  # train / test / validation
-        self.num_source_views = args.view_sampler.num_context_views
+        # self.num_source_views = args.view_sampler.num_context_views
+        self.num_source_views = 8
         self.llffhold = 8
         self.random_crop = False
         self.rectify_inplane_rotation = False
@@ -59,10 +60,8 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (176, 240)
-        out_w = 240
-        self.ratio = out_w / 504
-        self.h, self.w = int(self.ratio*378), int(out_w)
+        self.image_size = (352, 480)
+        # self.image_size = (176, 240)
         
         all_scenes = os.listdir(self.folder_path)
         
