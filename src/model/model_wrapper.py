@@ -191,11 +191,10 @@ class ModelWrapper(LightningModule):
         #                 gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
         #                 gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
         with torch.no_grad():
-            feature_list=[]
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians,feature = self.encoder(tmp_batch, self.global_step,features=None)
-                feature_list.append(feature)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step,features=None)
+                # feature_list.append(feature)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
@@ -222,7 +221,7 @@ class ModelWrapper(LightningModule):
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
-        total_loss.backward()
+        self.manual_backward(total_loss)
         rgb_pred_grad=output.color.grad
 
         row=ceil(h/out_h)
@@ -240,16 +239,10 @@ class ModelWrapper(LightningModule):
                 # Run the model.
                 data_crop: BatchedExample = self.data_shim(data_crop)
                 _, _, _, h_crop, w_crop = data_crop["target"]["image"].shape
+                features = self.encoder(batch["context"], self.global_step,features=None,clip_h=4,clip_w=4) 
                 for k in range(batch["context"]["image"].shape[1] - 1):
-                    tmp_batch = self.batch_cut(data_crop["context"],k)
-                    # if i==0 and j==0:
-                    #     feature_list=[]
-                    #     tmp_gaussians,feature = self.encoder(tmp_batch, self.global_step,features=None,clip_h=0,clip_w=0)  #计算第一个左上块的时候保留计算的feature
-                    #     feature_list.append(feature)
-                    # else:
-                    if i==0 and j==0:
-                        feature_list[k].requires_grad_(True)
-                    tmp_gaussians,feature= self.encoder(tmp_batch, self.global_step,feature_list[k],i,j)   #对于其他位置 传入全图feature直接进行计算
+                    tmp_batch = self.batch_cut(data_crop["context"],k)    
+                    tmp_gaussians= self.encoder(tmp_batch, self.global_step,features[:,k:k+2,:,:,:],i,j)   #对于其他位置 传入全图feature直接进行计算
 
                     if k == 0 :
                         gaussians: Gaussians = tmp_gaussians
@@ -277,6 +270,7 @@ class ModelWrapper(LightningModule):
                 # total_loss.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
                 output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
         # torch.nn.utils.clip_grad_value_(self.parameters(),clip_value=0.5)
+        self.clip_gradients(opt, gradient_clip_val=0.5, gradient_clip_algorithm="norm")        
         opt.step()
         target_gt = batch["target"]["image"]
         # Compute metrics.
@@ -284,6 +278,7 @@ class ModelWrapper(LightningModule):
             rearrange(target_gt, "b v c h w -> (b v) c h w"),
             rearrange(output.color, "b v c h w -> (b v) c h w"),
         )
+        # wandb.log("train/psnr_probabilistic", psnr_probabilistic.mean())
         self.log("train/psnr_probabilistic", psnr_probabilistic.mean())
 
         # self.global_step=self.global_step+1

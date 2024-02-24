@@ -100,7 +100,8 @@ def train(cfg_dict: DictConfig):
         enable_progress_bar=False,
         # gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=-1,
-        limit_val_batches=0.0
+        limit_val_batches=0.0,
+        log_every_n_steps=1
     )
 
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)

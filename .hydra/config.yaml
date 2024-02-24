@@ -84,10 +84,10 @@ wandb:
   entity: gyy456
   name: llff_test
   mode: online
-  log_interval: 10
   tags:
   - ibrnet
   - 256x256
+log_interval: 10
 mode: train
 data_loader:
   train:
@@ -109,7 +109,7 @@ optimizer:
   lr: 0.00015
   warm_up_steps: 1000
 checkpointing:
-  load: /data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt
+  load: /data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1000.ckpt
   every_n_train_steps: 500
   save_top_k: -1
 train:

@@ -117,10 +117,8 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
         clip_h: int = 3,
         clip_w: int = 3,
         deterministic: bool = False,
-        visualization_dump: Optional[dict] = None,
-        
-    ) -> tuple[Gaussians,
-               Tensor]:
+        visualization_dump: Optional[dict] = None,    
+    ) :
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
         # if clip_h==0 and clip_w==0:  #左上
@@ -132,10 +130,15 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
         if clip_h==3 and clip_w==3:  #全图
             # Encode the context images.
             features = self.backbone(context)
-            features = rearrange(features, "b v c h w -> b v h w c")
+            features = rearrange(features, "b v c h w -> b v h w c").to(torch.float)
             features = self.backbone_projection(features)
             features = rearrange(features, "b v h w c -> b v c h w")
-        features_1=features
+        elif clip_h==4 and clip_w==4:
+            features = self.backbone(context)
+            features = rearrange(features, "b v c h w -> b v h w c").to(torch.float)
+            features = self.backbone_projection(features)
+            features = rearrange(features, "b v h w c -> b v c h w")
+            return features
         # Run the epipolar transformer.
         if self.cfg.use_epipolar_transformer:
             features, sampling = self.epipolar_transformer(
@@ -233,7 +236,7 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
                 opacity_multiplier * gaussians.opacities,
                 "b v r srf spp -> b (v r srf spp)",
             ),
-        ),features_1
+        )
 
     def get_data_shim(self) -> DataShim:
         def data_shim(batch: BatchedExample) -> BatchedExample:

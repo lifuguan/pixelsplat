@@ -10,7 +10,8 @@ wandb:
   entity: gyy456
   name: placeholder
   mode: disabled
-  log_interval: 10
+
+log_interval: 10
 
 mode: train
 

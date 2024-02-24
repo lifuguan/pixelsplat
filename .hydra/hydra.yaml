@@ -111,7 +111,7 @@ hydra:
   overrides:
     hydra:
     - hydra.run.dir="/data/gyy/pixelsplat"
-    - hydra.job.name=train_ddp_process_1
+    - hydra.job.name=train_ddp_process_2
     - hydra.mode=RUN
     task:
     - wandb.mode=online
@@ -121,11 +121,11 @@ hydra:
     - data_loader.test.num_workers=0
     - data_loader.val.num_workers=0
     - data_loader.train.batch_size=1
-    - checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt
+    - checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1000.ckpt
   job:
-    name: train_ddp_process_1
+    name: train_ddp_process_2
     chdir: null
-    override_dirname: ++dataset.scene=['room'],+experiment=llff_test,checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt,data_loader.test.num_workers=0,data_loader.train.batch_size=1,data_loader.train.num_workers=0,data_loader.val.num_workers=0,wandb.mode=online
+    override_dirname: ++dataset.scene=['room'],+experiment=llff_test,checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1000.ckpt,data_loader.test.num_workers=0,data_loader.train.batch_size=1,data_loader.train.num_workers=0,data_loader.val.num_workers=0,wandb.mode=online
     id: ???
     num: ???
     config_name: main

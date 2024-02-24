@@ -5,4 +5,4 @@
 - data_loader.test.num_workers=0
 - data_loader.val.num_workers=0
 - data_loader.train.batch_size=1
-- checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt
+- checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1000.ckpt

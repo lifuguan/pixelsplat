@@ -61,11 +61,12 @@
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat/src/checkpoints/re10k.ckpt",
                 // "checkpointing.load=/data/gyy/2000.ckpt",
                 // "checkpointing.load=/data/gyy/Downloads/3500.ckpt",
-                "checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt"
+                // "checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt",
+                "checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1000.ckpt",
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-05/00-34-00/checkpoints/epoch_237_step_10000.ckpt"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "CUDA_VISIBLE_DEVICES": "0",
             }
         },
         {
@@ -90,7 +91,7 @@
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-02/00-30-36/checkpoints/epoch_37_step_3000.ckpt",
                 // "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt"
                 // "checkpointing.load=/data/gyy/Downloads/17000.ckpt",
-                "checkpointing.load=/data/gyy/Downloads/3500.ckpt",
+                "checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-24/00-52-07/checkpoints/1500.ckpt",
                 // "checkpointing.load=/data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt"
                 // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
