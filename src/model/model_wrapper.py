@@ -160,7 +160,7 @@ class ModelWrapper(LightningModule):
 
         # Run the model.
         # gaussians = self.encoder(batch["context"], self.global_step, False)
-
+        sch = self.lr_schedulers()
         opt = self.optimizers()
         opt.zero_grad()
         out_h=176
@@ -195,7 +195,7 @@ class ModelWrapper(LightningModule):
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
-        total_loss.backward()
+        self.manual_backward(total_loss)
         rgb_pred_grad=output.color.grad
 
         # for i in range(batch["context"]["image"].shape[1] - 1):
@@ -236,7 +236,9 @@ class ModelWrapper(LightningModule):
                     depth_mode=self.train_cfg.depth_mode,
                 )
                 output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
-        opt.step()
+        
+        opt.step(); sch.step()
+        
         target_gt = batch["target"]["image"]
         # Compute metrics.
         psnr_probabilistic = compute_psnr(
@@ -245,7 +247,6 @@ class ModelWrapper(LightningModule):
         )
         self.log("train/psnr_probabilistic", psnr_probabilistic.mean())
 
-        # self.global_step=self.global_step+1
         if self.global_rank == 0:
             print(
                 f"train step {self.global_step}; "

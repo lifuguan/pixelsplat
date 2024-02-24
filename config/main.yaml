@@ -36,9 +36,8 @@ data_loader:
     seed: 3456
 
 optimizer:
-  lr: 1e-4
-  warm_up_steps: 200
-  lightning_restore_optimizer_and_schedulers: False
+  lr: 0.00015
+  warm_up_steps: 100
 
 checkpointing:
   load: null

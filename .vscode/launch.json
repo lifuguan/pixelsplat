@@ -63,8 +63,8 @@
                 "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt"
             ],
             "env": {
-                // "CUDA_VISIBLE_DEVICES": "1",
-                "CUDA_VISIBLE_DEVICES": "1,2,3,4",
+                "CUDA_VISIBLE_DEVICES": "1",
+                // "CUDA_VISIBLE_DEVICES": "1,2,3,4",
             }
         },
         {
@@ -86,9 +86,9 @@
                 "+experiment=llff_test",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-02/00-30-36/checkpoints/epoch_37_step_3000.ckpt",
+                "checkpointing.load=outputs/2024-02-24/04-33-24/checkpoints/200.ckpt",
                 // "checkpointing.load=outputs/2024-02-23/16-59-47/checkpoints/200.ckpt"
-                "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt"
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt"
             ],
         },
         {
