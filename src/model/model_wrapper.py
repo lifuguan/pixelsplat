@@ -195,7 +195,8 @@ class ModelWrapper(LightningModule):
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
-        self.manual_backward(total_loss)
+        # self.manual_backward(total_loss)
+        total_loss.backward()
         rgb_pred_grad=output.color.grad
 
         # for i in range(batch["context"]["image"].shape[1] - 1):
