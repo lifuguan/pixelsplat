@@ -37,7 +37,7 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/3500.ckpt",
             ],
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
@@ -51,7 +51,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "wandb.mode=disabled",
+                "wandb.mode=online",
                 "+experiment=llff_test",
                 "++dataset.scene=['room']",
                 "data_loader.train.num_workers=0",
@@ -59,16 +59,17 @@
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat/src/checkpoints/re10k.ckpt",
-                "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt",
-                // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-05/00-34-00/checkpoints/epoch_237_step_10000.ckpt"
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/3500_resnet.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                // "CUDA_VISIBLE_DEVICES": "1",
+                "CUDA_VISIBLE_DEVICES": "1,2,3,4",
             }
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "6",
             },
             "name": "Test (llff)",
             "type": "python",
@@ -86,9 +87,8 @@
                 "mode=test",
                 "dataset/view_sampler=evaluation",
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-02/00-30-36/checkpoints/epoch_37_step_3000.ckpt",
-                // "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt"
-                "checkpointing.load=/home/gyy/Downloads/3500.ckpt",
-                // "checkpointing.load=model_zoo/ibrnet.ckpt",
+                // "checkpointing.load=outputs/2024-02-23/16-59-47/checkpoints/200.ckpt"
+                "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt"
             ],
         },
         {

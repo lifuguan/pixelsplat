@@ -6,10 +6,11 @@ defaults:
   - loss: [mse, density]
 
 wandb:
-  project: pixelsplat
-  entity: your-entity-here
+  project: rg-gs
+  entity: lifuguan
   name: placeholder
   mode: disabled
+  log_interval: 10
 
 mode: train
 
@@ -35,8 +36,9 @@ data_loader:
     seed: 3456
 
 optimizer:
-  lr: 1.5e-4
-  warm_up_steps: 2000
+  lr: 1e-4
+  warm_up_steps: 200
+  lightning_restore_optimizer_and_schedulers: False
 
 checkpointing:
   load: null

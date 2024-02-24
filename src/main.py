@@ -57,6 +57,7 @@ def train(cfg_dict: DictConfig):
         logger = WandbLogger(
             project=cfg_dict.wandb.project,
             mode=cfg_dict.wandb.mode,
+            entity=cfg_dict.wandb.entity,
             name=f"{cfg_dict.wandb.name} ({output_dir.parent.name}/{output_dir.name})",
             tags=cfg_dict.wandb.get("tags", None),
             log_model="all",
@@ -99,7 +100,7 @@ def train(cfg_dict: DictConfig):
         enable_progress_bar=False,
         # gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=-1,
-        limit_val_batches=0.0
+        limit_val_batches=0.0,
     )
 
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)
@@ -114,8 +115,10 @@ def train(cfg_dict: DictConfig):
         get_losses(cfg.loss),
         step_tracker,
     )
-    checkpoint = torch.load(checkpoint_path)
+
+    # checkpoint = torch.load(checkpoint_path)
     # model_wrapper.load_state_dict(checkpoint['state_dict'])
+
     data_module = DataModule(cfg.dataset, cfg.data_loader, step_tracker)
 
     if cfg.mode == "train":
