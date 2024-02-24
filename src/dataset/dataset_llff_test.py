@@ -61,9 +61,9 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        self.image_size = (168, 224) #训练的时候
-        # self.image_size = (378, 504) #测试的时候
-        out_w = 224
+        # self.image_size = (160, 244) #训练的时候
+        self.image_size = (320, 448) #测试的时候
+        out_w = 448
         self.ratio = out_w / 504
         self.h, self.w = int(self.ratio*378), int(out_w)
         
@@ -203,11 +203,11 @@ class LLFFTestDataset(IterableDataset):
             src_rgbs = np.stack(src_rgbs, axis=0)
             src_cameras = np.stack(src_cameras, axis=0)
             src_intrinsics, src_extrinsics = np.stack(src_intrinsics, axis=0), np.stack(src_extrinsics, axis=0)
-            if self.mode == 'train' and random.randint(1, 100) < 75:
+            if self.mode == 'train' and random.randint(1, 100) < 0:
                 #(168, 224)#(378,504)
                 # low=168*224//504+2
                 # high=370
-                # crop_h = np.random.randint(low, high) #74~378
+                # crop_h = np.random.randint(100, 300) #74~378
                 # crop_h = crop_h + 1 if crop_h % 2 == 1 else crop_h
                 # crop_w = int(168*224 / crop_h)
                 # crop_w = crop_w + 1 if crop_w % 2 == 1 else crop_w
@@ -223,12 +223,20 @@ class LLFFTestDataset(IterableDataset):
                 src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size,center_h,center_w)
                 intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size,center_h,center_w)
                 # print("resize")
+            else:   #测试
+                rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
+                center_h=0.5
+                center_w=0.5
+                src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size,center_h,center_w)
+                intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size,center_h,center_w)
+              
+
             extrinsics = torch.from_numpy(render_pose).unsqueeze(0).float()
             src_extrinsics = torch.from_numpy(src_extrinsics).float()
             depth_range = torch.tensor([depth_range[0] * 0.9, depth_range[1] * 1.5])
 
             # Resize the world to make the baseline 1.
-            if src_extrinsics.shape[0] == 2:
+            if src_extrinsics.shape[0] == 1:
                 a, b = src_extrinsics[:, :3, 3]
                 scale = (a - b).norm()
                 if scale < 0.001:

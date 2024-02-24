@@ -15,11 +15,22 @@ from ....misc.heterogeneous_pairings import (
 )
 
 
+# @dataclass
+# class EpipolarSampling:
+#     features: Float[Tensor, "batch view other_view ray sample channel"]
+#     valid: Bool[Tensor, "batch view other_view ray"]
+#     xy_ray: Float[Tensor, "batch view ray 2"]
+#     xy_sample: Float[Tensor, "batch view other_view ray sample 2"]
+#     xy_sample_near: Float[Tensor, "batch view other_view ray sample 2"]
+#     xy_sample_far: Float[Tensor, "batch view other_view ray sample 2"]
+#     origins: Float[Tensor, "batch view ray 3"]
+#     directions: Float[Tensor, "batch view ray 3"]
+
 @dataclass
 class EpipolarSampling:
     features: Float[Tensor, "batch view other_view ray sample channel"]
     valid: Bool[Tensor, "batch view other_view ray"]
-    xy_ray: Float[Tensor, "batch view ray 2"]
+    xy_ray: Float[Tensor, "batch view _ 2"]
     xy_sample: Float[Tensor, "batch view other_view ray sample 2"]
     xy_sample_near: Float[Tensor, "batch view other_view ray sample 2"]
     xy_sample_far: Float[Tensor, "batch view other_view ray sample 2"]
@@ -55,9 +66,11 @@ class EpipolarSampler(nn.Module):
         intrinsics: Float[Tensor, "batch view 3 3"],
         near: Float[Tensor, "batch view"],
         far: Float[Tensor, "batch view"],
+        clip_h: int,
+        clip_w: int,
     ) -> EpipolarSampling:
         device = images.device
-        b, v, _, _, _ = images.shape
+        b, v, _, h, w = images.shape
 
         # Generate the rays that are projected onto other views.
         xy_ray, origins, directions = self.generate_image_rays(
@@ -66,6 +79,13 @@ class EpipolarSampler(nn.Module):
 
         # Select the camera extrinsics and intrinsics to project onto. For each context
         # view, this means all other context views in the batch.
+        if clip_h!=3:  #对ray进行crop
+            origins =rearrange(origins, "b v (h w) xyz -> b v h w xyz",h=h,w=w)
+            origins =rearrange(origins[:,:,h//2*clip_h:h//2*(clip_h+1),w//2*clip_w:w//2*(clip_w+1),:],"b v h w xyz -> b v (h w) xyz")
+
+            directions=rearrange(directions, "b v (h w) xyz -> b v h w xyz",h=h,w=w)
+            directions =rearrange(directions[:,:,h//2*clip_h:h//2*(clip_h+1),w//2*clip_w:w//2*(clip_w+1),:],"b v h w xyz -> b v (h w) xyz")
+
         projection = project_rays(
             rearrange(origins, "b v r xyz -> b v () r xyz"),
             rearrange(directions, "b v r xyz -> b v () r xyz"),
@@ -86,7 +106,7 @@ class EpipolarSampler(nn.Module):
         xy_max = projection["xy_max"].nan_to_num(posinf=0, neginf=0) 
         xy_max = xy_max * projection["overlaps_image"][..., None]
         xy_max = rearrange(xy_max, "b v ov r xy -> b v ov r () xy")
-        xy_sample = xy_min + sample_depth * (xy_max - xy_min)
+        xy_sample = xy_min + sample_depth * (xy_max - xy_min)  #xy_min 是极线起点
 
         # The samples' shape is (batch, view, other_view, ...). However, before the
         # transpose, the view dimension refers to the view from which the ray is cast,
@@ -102,7 +122,7 @@ class EpipolarSampler(nn.Module):
             mode="bilinear",
             padding_mode="zeros",
             align_corners=False,
-        )
+        )              #取出极线上32个depth点对应的feature
         samples = rearrange(
             samples, "(b v) c (ov r s) () -> b v ov r s c", b=b, v=v, ov=v - 1, s=s
         )

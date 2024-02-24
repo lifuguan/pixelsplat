@@ -110,8 +110,16 @@ def random_crop(rgb, camera, src_rgbs, src_cameras, size=(400, 600), center=None
     if center is not None:
         center_h, center_w = center
     else:
-        center_h = np.random.randint(low=out_h // 2 + 1, high=h - out_h // 2 - 1)
-        center_w = np.random.randint(low=out_w // 2 + 1, high=w - out_w // 2 - 1)
+        center_h = np.random.randint(low=0 , high=h  )
+        center_w = np.random.randint(low=0 , high=w  )
+        if center_h<=out_h//2:
+            center_h=out_h//2
+        elif center_h>=(h - out_h // 2):
+           center_h= h - out_h // 2
+        if center_w<=out_w // 2:
+            center_w=out_w//2
+        elif center_w>=w - out_w // 2:
+            center_w=w-out_w//2
     rgb_out = rgb[center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2, :]
     src_rgbs = np.array(src_rgbs)
     src_rgbs = src_rgbs[:, center_h - out_h // 2:center_h + out_h // 2,
@@ -146,7 +154,7 @@ def loader_resize(rgb, camera, src_rgbs, src_cameras, size=(400, 600)):
     intrinsics = camera[2:18].reshape(4, 4)
     src_intrinsics = src_cameras[:, 2:18].reshape(-1, 4, 4)
     if out_w >= w or out_h >= h:
-        return rgb, camera, src_rgbs, src_cameras
+        return rgb, camera, src_rgbs, src_cameras,intrinsics[..., :3, :3], src_intrinsics[..., :3, :3]
 
     ratio_y = out_h / h
     ratio_x = out_w / w

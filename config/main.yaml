@@ -7,9 +7,10 @@ defaults:
 
 wandb:
   project: pixelsplat
-  entity: your-entity-here
+  entity: gyy456
   name: placeholder
   mode: disabled
+  log_interval: 10
 
 mode: train
 
@@ -36,11 +37,11 @@ data_loader:
 
 optimizer:
   lr: 1.5e-4
-  warm_up_steps: 2000
+  warm_up_steps: 1000
 
 checkpointing:
   load: null
-  every_n_train_steps: 1000
+  every_n_train_steps: 500
   save_top_k: -1
 
 train:

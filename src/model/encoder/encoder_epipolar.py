@@ -113,18 +113,29 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
         self,
         context: dict,
         global_step: int,
+        features: Tensor=None,
+        clip_h: int = 3,
+        clip_w: int = 3,
         deterministic: bool = False,
         visualization_dump: Optional[dict] = None,
-    ) -> Gaussians:
+        
+    ) -> tuple[Gaussians,
+               Tensor]:
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
-
-        # Encode the context images.
-        features = self.backbone(context)
-        features = rearrange(features, "b v c h w -> b v h w c")
-        features = self.backbone_projection(features)
-        features = rearrange(features, "b v h w c -> b v c h w")
-
+        # if clip_h==0 and clip_w==0:  #左上
+        #     # Encode the context images.
+        #     features = self.backbone(context)
+        #     features = rearrange(features, "b v c h w -> b v h w c")
+        #     features = self.backbone_projection(features)
+        #     features = rearrange(features, "b v h w c -> b v c h w")
+        if clip_h==3 and clip_w==3:  #全图
+            # Encode the context images.
+            features = self.backbone(context)
+            features = rearrange(features, "b v c h w -> b v h w c")
+            features = self.backbone_projection(features)
+            features = rearrange(features, "b v h w c -> b v c h w")
+        features_1=features
         # Run the epipolar transformer.
         if self.cfg.use_epipolar_transformer:
             features, sampling = self.epipolar_transformer(
@@ -133,10 +144,16 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
                 context["intrinsics"],
                 context["near"],
                 context["far"],
+                clip_h,
+                clip_w,
             )
 
         # Add the high-resolution skip connection.
-        skip = rearrange(context["image"], "b v c h w -> (b v) c h w")
+        # skip = rearrange(context["image"], "b v c h w -> (b v) c h w")
+        if clip_h==3:
+            skip = rearrange(context["image"], "b v c h w -> (b v) c h w")
+        else:
+            skip = rearrange(context["image"][:,:,:,clip_h*h//2:(clip_h+1)*h//2,clip_w*w//2:(clip_w+1)*w//2], "b v c h w -> (b v) c h w")
         skip = self.high_resolution_skip(skip)
         features = features + rearrange(skip, "(b v) c h w -> b v c h w", b=b, v=v)
 
@@ -152,7 +169,10 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
 
         # Convert the features and depths into Gaussians.
         xy_ray, _ = sample_image_grid((h, w), device)
-        xy_ray = rearrange(xy_ray, "h w xy -> (h w) () xy")
+        if clip_w!=3:  #crop
+            xy_ray = rearrange(xy_ray[clip_h*h//2:(clip_h+1)*h//2,clip_w*w//2:(clip_w+1)*w//2,:], "h w xy -> (h w) () xy")
+        else:
+            xy_ray = rearrange(xy_ray, "h w xy -> (h w) () xy")  #全分辨率
         gaussians = rearrange(
             self.to_gaussians(features),
             "... (srf c) -> ... srf c",
@@ -213,7 +233,7 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
                 opacity_multiplier * gaussians.opacities,
                 "b v r srf spp -> b (v r srf spp)",
             ),
-        )
+        ),features_1
 
     def get_data_shim(self) -> DataShim:
         def data_shim(batch: BatchedExample) -> BatchedExample:

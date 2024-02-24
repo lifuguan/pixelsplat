@@ -80,7 +80,9 @@ class EpipolarTransformer(nn.Module):
         intrinsics: Float[Tensor, "batch view 3 3"],
         near: Float[Tensor, "batch view"],
         far: Float[Tensor, "batch view"],
-    ) -> tuple[Float[Tensor, "batch view channel height width"], EpipolarSampling,]:
+        clip_h: int,
+        clip_w: int,
+    ) -> tuple[Float[Tensor, "batch view channel h_out w_out"], EpipolarSampling,]:
         b, v, _, h, w = features.shape
 
         # If needed, apply downscaling.
@@ -91,7 +93,7 @@ class EpipolarTransformer(nn.Module):
 
         # Get the samples used for epipolar attention.
         sampling = self.epipolar_sampler.forward(
-            features, extrinsics, intrinsics, near, far
+            features, extrinsics, intrinsics, near, far,clip_h,clip_w,
         )
 
         if self.cfg.num_octaves > 0:
@@ -100,7 +102,7 @@ class EpipolarTransformer(nn.Module):
             depths = get_depth(
                 rearrange(sampling.origins, "b v r xyz -> b v () r () xyz"),
                 rearrange(sampling.directions, "b v r xyz -> b v () r () xyz"),
-                sampling.xy_sample,
+                sampling.xy_sample,   #uv坐标系 
                 rearrange(collect(extrinsics), "b v ov i j -> b v ov () () i j"),
                 rearrange(collect(intrinsics), "b v ov i j -> b v ov () () i j"),
             )
@@ -108,12 +110,12 @@ class EpipolarTransformer(nn.Module):
             # Clip the depths. This is necessary for edge cases where the context views
             # are extremely close together (or possibly oriented the same way).
             depths = depths.maximum(near[..., None, None, None])
-            depths = depths.minimum(far[..., None, None, None])
+            depths = depths.minimum(far[..., None, None, None])  #缺乏尺度的detph
             depths = depth_to_relative_disparity(
                 depths,
                 rearrange(near, "b v -> b v () () ()"),
                 rearrange(far, "b v -> b v () () ()"),
-            )
+            )  #归一化
             depths = self.depth_encoding(depths[..., None])
             q = sampling.features + depths
         else:
@@ -124,23 +126,44 @@ class EpipolarTransformer(nn.Module):
         #     q = q.mean(dim=2, keepdims=True)
 
         # Run the transformer.
-        kv = rearrange(features, "b v c h w -> (b v h w) () c")
-        features = self.transformer.forward(
-            kv,
-            rearrange(q, "b v () r s c -> (b v r) s c"),
-            b=b,
-            v=v,
-            h=h // self.cfg.downscale,
-            w=w // self.cfg.downscale,
-        )
-        features = rearrange(
-            features,
-            "(b v h w) () c -> b v c h w",
-            b=b,
-            v=v,
-            h=h // self.cfg.downscale,
-            w=w // self.cfg.downscale,
-        )
+        if clip_h!=3:
+            features=features[:,:,:,h//8*clip_h:h//8*(clip_h+1),w//8*clip_w:w//8*(clip_w+1)]       #crop
+            kv = rearrange(features, "b v c h w -> (b v h w) () c")
+            features = self.transformer.forward(
+                kv,
+                rearrange(q, "b v () r s c -> (b v r) s c"),
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale//2,
+                w=w // self.cfg.downscale//2,
+            )
+            features = rearrange(
+                features,
+                "(b v h w) () c -> b v c h w",
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale//2,
+                w=w // self.cfg.downscale//2,
+            )
+        else:    #全分辨率
+            # features=features[:,:,:,h//8*clip_h:h//8*(clip_h+1),w//8*clip_w:w//8*(clip_w+1)]      
+            kv = rearrange(features, "b v c h w -> (b v h w) () c")
+            features = self.transformer.forward(
+                kv,
+                rearrange(q, "b v () r s c -> (b v r) s c"),
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale,
+                w=w // self.cfg.downscale,
+            )
+            features = rearrange(
+                features,
+                "(b v h w) () c -> b v c h w",
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale,
+                w=w // self.cfg.downscale,
+            )
 
         # If needed, apply upscaling.
         if self.upscaler is not None:

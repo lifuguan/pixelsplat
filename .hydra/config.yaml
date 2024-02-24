@@ -1,0 +1,124 @@
+dataset:
+  view_sampler:
+    name: bounded
+    num_target_views: 1
+    num_context_views: 2
+    min_distance_between_context_views: 2
+    max_distance_between_context_views: 6
+    min_distance_to_context_views: 0
+    warm_up_steps: 0
+    initial_min_distance_between_context_views: 2
+    initial_max_distance_between_context_views: 6
+  name: llff_test
+  roots:
+  - data/ibrnet/re10k_subset
+  make_baseline_1: true
+  scene:
+  - room
+  augment: true
+  image_shape:
+  - 256
+  - 256
+  background_color:
+  - 0.0
+  - 0.0
+  - 0.0
+  cameras_are_circular: false
+  baseline_epsilon: 0.001
+  max_fov: 100.0
+  overfit_to_scene: null
+model:
+  encoder:
+    backbone:
+      name: dino
+      model: dino_vitb8
+      d_out: 512
+    name: epipolar
+    opacity_mapping:
+      initial: 0.0
+      final: 0.0
+      warm_up: 1
+    num_monocular_samples: 32
+    num_surfaces: 1
+    predict_opacity: false
+    near_disparity: 3.0
+    gaussians_per_pixel: 3
+    gaussian_adapter:
+      gaussian_scale_min: 0.5
+      gaussian_scale_max: 15.0
+      sh_degree: 4
+    d_feature: 128
+    epipolar_transformer:
+      self_attention:
+        patch_size: 4
+        num_octaves: 10
+        num_layers: 2
+        num_heads: 4
+        d_token: 128
+        d_dot: 128
+        d_mlp: 256
+      num_octaves: 10
+      num_layers: 2
+      num_heads: 4
+      num_samples: 32
+      d_dot: 128
+      d_mlp: 256
+      downscale: 4
+    visualizer:
+      num_samples: 8
+      min_resolution: 256
+      export_ply: false
+    apply_bounds_shim: true
+    use_epipolar_transformer: true
+    use_transmittance: false
+  decoder:
+    name: splatting_cuda
+loss:
+  mse:
+    weight: 1.0
+  lpips:
+    weight: 0.05
+    apply_after_step: 150000
+wandb:
+  project: pixelsplat
+  entity: gyy456
+  name: llff_test
+  mode: online
+  log_interval: 10
+  tags:
+  - ibrnet
+  - 256x256
+mode: train
+data_loader:
+  train:
+    num_workers: 0
+    persistent_workers: true
+    batch_size: 1
+    seed: 1234
+  test:
+    num_workers: 0
+    persistent_workers: false
+    batch_size: 1
+    seed: 2345
+  val:
+    num_workers: 0
+    persistent_workers: true
+    batch_size: 1
+    seed: 3456
+optimizer:
+  lr: 0.00015
+  warm_up_steps: 1000
+checkpointing:
+  load: /data/gyy/pixelsplat/outputs/2024-02-23/21-46-43/checkpoints/100.ckpt
+  every_n_train_steps: 500
+  save_top_k: -1
+train:
+  depth_mode: null
+  extended_visualization: false
+test:
+  output_path: outputs/test
+seed: 111123
+trainer:
+  max_steps: 300001
+  val_check_interval: 10
+  gradient_clip_val: 0.5
