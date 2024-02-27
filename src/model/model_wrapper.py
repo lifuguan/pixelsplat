@@ -268,7 +268,6 @@ class ModelWrapper(LightningModule):
                 else:
                     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(out_w//2+j*out_w)))  
                 # Run the model.
-                _, _, _, h, w = data_crop["target"]["image"].shape
                 for k in range(batch["context"]["image"].shape[1] - 1):
                     tmp_batch = self.batch_cut(data_crop["context"],k)
                     tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
@@ -314,90 +313,90 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch_, batch_idx):
-        batch: BatchedExample = self.data_shim(batch_)
+    # def test_step(self, batch_, batch_idx):
+    #     batch: BatchedExample = self.data_shim(batch_)
 
-        b, v, _, h, w = batch["target"]["image"].shape
-        assert b == 1
-        if batch_idx % 100 == 0:
-            print(f"Test step {batch_idx:0>6}.")
+    #     b, v, _, h, w = batch["target"]["image"].shape
+    #     assert b == 1
+    #     if batch_idx % 100 == 0:
+    #         print(f"Test step {batch_idx:0>6}.")
 
-        visualization_dump = {}
+    #     visualization_dump = {}
 
-        # Render Gaussians.
-        # with self.benchmarker.time("encoder"):
-        #     gaussians = self.encoder(
-        #         batch["context"],
-        #         self.global_step,
-        #         deterministic=True,
-        #         visualization_dump=visualization_dump,
-        #     )
+    #     # Render Gaussians.
+    #     # with self.benchmarker.time("encoder"):
+    #     #     gaussians = self.encoder(
+    #     #         batch["context"],
+    #     #         self.global_step,
+    #     #         deterministic=True,
+    #     #         visualization_dump=visualization_dump,
+    #     #     )
 
 
         
 
-        with self.benchmarker.time("encoder"):
-            for i in range(batch["context"]["image"].shape[1] - 1):
-                tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
-                if i == 0:
-                    gaussians: Gaussians = tmp_gaussians
-                else:
-                    gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-                    gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-                    gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-                    gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+    #     with self.benchmarker.time("encoder"):
+    #         for i in range(batch["context"]["image"].shape[1] - 1):
+    #             tmp_batch = self.batch_cut(batch["context"],i)
+    #             tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+    #             if i == 0:
+    #                 gaussians: Gaussians = tmp_gaussians
+    #             else:
+    #                 gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+    #                 gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+    #                 gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+    #                 gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
             
-        with self.benchmarker.time("decoder", num_calls=v):
-            output = self.decoder.forward(
-                gaussians,
-                batch["target"]["extrinsics"],
-                batch["target"]["intrinsics"],
-                batch["target"]["near"],
-                batch["target"]["far"],
-                (h, w),
-                depth_mode="depth",
-            )
+    #     with self.benchmarker.time("decoder", num_calls=v):
+    #         output = self.decoder.forward(
+    #             gaussians,
+    #             batch["target"]["extrinsics"],
+    #             batch["target"]["intrinsics"],
+    #             batch["target"]["near"],
+    #             batch["target"]["far"],
+    #             (h, w),
+    #             depth_mode="depth",
+    #         )
 
-        # if True:
-        #     ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
-        #     export_ply(
-        #         batch["context"]["extrinsics"][0, 0],
-        #         gaussians.means[0],
-        #         visualization_dump["scales"][0],
-        #         visualization_dump["rotations"][0],
-        #         gaussians.harmonics[0],
-        #         gaussians.opacities[0],
-        #         ply_path,
-        #     )
+    #     # if True:
+    #     #     ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
+    #     #     export_ply(
+    #     #         batch["context"]["extrinsics"][0, 0],
+    #     #         gaussians.means[0],
+    #     #         visualization_dump["scales"][0],
+    #     #         visualization_dump["rotations"][0],
+    #     #         gaussians.harmonics[0],
+    #     #         gaussians.opacities[0],
+    #     #         ply_path,
+    #     #     )
 
-        target_gt = batch["target"]["image"]
+    #     target_gt = batch["target"]["image"]
 
-        dpt = depth_to_relative_disparity(
-                output.depth.squeeze(0).squeeze(0), batch["target"]["near"][0, 0], batch["target"]["far"][0, 0]
-            )
+    #     dpt = depth_to_relative_disparity(
+    #             output.depth.squeeze(0).squeeze(0), batch["target"]["near"][0, 0], batch["target"]["far"][0, 0]
+    #         )
 
-        psnr_probabilistic = compute_psnr(
-            rearrange(target_gt, "b v c h w -> (b v) c h w"),
-            rearrange(output.color, "b v c h w -> (b v) c h w"),
-        )
-        if self.global_rank == 0:
-            print(
-                f"test step {self.current_step}; "
-                f"scene = {batch['scene']}; "
-                f"context = {batch['context']['index'].tolist()}; "
-                f"psnr = {psnr_probabilistic.mean():.2f}"
-            )
-        self.psnr=self.psnr+psnr_probabilistic.mean()
-        # Save images.
-        (scene,) = batch["scene"]
-        name = get_cfg()["wandb"]["name"]
-        path = self.test_cfg.output_path / name
-        for index, color in zip(batch["target"]["index"][0], output.color[0]):
-            save_image(color, path / scene / f"color/{index:0>2}.png")
-        self.current_step += 1
-        if self.current_step==6:
-            print(f'mean_psnr,{self.psnr/self.current_step}')
+    #     psnr_probabilistic = compute_psnr(
+    #         rearrange(target_gt, "b v c h w -> (b v) c h w"),
+    #         rearrange(output.color, "b v c h w -> (b v) c h w"),
+    #     )
+    #     if self.global_rank == 0:
+    #         print(
+    #             f"test step {self.current_step}; "
+    #             f"scene = {batch['scene']}; "
+    #             f"context = {batch['context']['index'].tolist()}; "
+    #             f"psnr = {psnr_probabilistic.mean():.2f}"
+    #         )
+    #     self.psnr=self.psnr+psnr_probabilistic.mean()
+    #     # Save images.
+    #     (scene,) = batch["scene"]
+    #     name = get_cfg()["wandb"]["name"]
+    #     path = self.test_cfg.output_path / name
+    #     for index, color in zip(batch["target"]["index"][0], output.color[0]):
+    #         save_image(color, path / scene / f"color/{index:0>2}.png")
+    #     self.current_step += 1
+    #     if self.current_step==6:
+    #         print(f'mean_psnr,{self.psnr/self.current_step}')
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
         self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
@@ -406,7 +405,7 @@ class ModelWrapper(LightningModule):
         )
 
     @rank_zero_only
-    def validation_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
 
         if self.global_rank == 0:
@@ -424,9 +423,8 @@ class ModelWrapper(LightningModule):
         #     self.global_step,
         #     deterministic=False,
         # )
-        for i in range(batch["context"]["image"].shape[1] - 1):
-            tmp_batch = self.batch_cut(batch["context"],i)
-            tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+        for i in range(1):
+            tmp_gaussians = self.encoder(batch["context"], self.global_step, False)
             if i == 0:
                 gaussians_probabilistic: Gaussians = tmp_gaussians
             else:
@@ -448,9 +446,8 @@ class ModelWrapper(LightningModule):
         #     self.global_step,
         #     deterministic=True,
         # )
-        for i in range(batch["context"]["image"].shape[1] - 1):
-            tmp_batch = self.batch_cut(batch["context"],i)
-            tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+        for i in range(1):
+            tmp_gaussians = self.encoder(batch["context"], self.global_step, False)
             if i == 0:
                 gaussians_deterministic: Gaussians = tmp_gaussians
             else:
@@ -500,13 +497,14 @@ class ModelWrapper(LightningModule):
             hcat(
                 *render_projections(
                     gaussians_probabilistic,
+                    batch["target"]["intrinsics"],
                     256,
                     extra_label="(Probabilistic)",
                 )[0]
             ),
             hcat(
                 *render_projections(
-                    gaussians_deterministic, 256, extra_label="(Deterministic)"
+                    gaussians_deterministic, batch["target"]["intrinsics"],256, extra_label="(Deterministic)"
                 )[0]
             ),
             align="left",

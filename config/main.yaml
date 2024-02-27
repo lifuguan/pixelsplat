@@ -7,7 +7,7 @@ defaults:
 
 wandb:
   project: pixelsplat
-  entity: your-entity-here
+  entity: gyy456
   name: placeholder
   mode: disabled
 

@@ -130,6 +130,7 @@ def render_cuda(
 
 def render_cuda_orthographic(
     extrinsics: Float[Tensor, "batch 4 4"],
+    intrinsics: Float[Tensor, "batch 3 3"],
     width: Float[Tensor, " batch"],
     height: Float[Tensor, " batch"],
     near: Float[Tensor, " batch"],
@@ -174,7 +175,7 @@ def render_cuda_orthographic(
         dump["far"] = far
 
     projection_matrix = get_projection_matrix(
-        near, far, repeat(fov_x, "-> b", b=b), fov_y
+        near, far, repeat(fov_x, "-> b", b=b), fov_y,intrinsics,
     )
     projection_matrix = rearrange(projection_matrix, "b i j -> b j i")
     view_matrix = rearrange(extrinsics.inverse(), "b i j -> b j i")
@@ -208,7 +209,7 @@ def render_cuda_orthographic(
 
         row, col = torch.triu_indices(3, 3)
 
-        image, radii, _ = rasterizer(
+        image, radii = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,

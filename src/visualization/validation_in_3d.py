@@ -24,6 +24,7 @@ def pad(images: list[Shaped[Tensor, "..."]]) -> list[Shaped[Tensor, "..."]]:
 
 def render_projections(
     gaussians: Gaussians,
+    intrinsics,
     resolution: int,
     margin: float = 0.1,
     draw_label: bool = True,
@@ -67,6 +68,7 @@ def render_projections(
 
         projection = render_cuda_orthographic(
             extrinsics,
+            intrinsics.squeeze(0),
             width,
             height,
             near,

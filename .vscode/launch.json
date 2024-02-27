@@ -51,7 +51,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "wandb.mode=disabled",
+                "wandb.mode=online",
                 "+experiment=llff_test",
                 "++dataset.scene=['room']",
                 "data_loader.train.num_workers=0",
@@ -87,7 +87,9 @@
                 "dataset/view_sampler=evaluation",
                 // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-02/00-30-36/checkpoints/epoch_37_step_3000.ckpt",
                 // "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt"
-                "checkpointing.load=/home/gyy/Downloads/3500.ckpt",
+                // "checkpointing.load=/home/gyy/Downloads/pixelsplat_mul/pixelsplat/outputs/2024-02-21/14-44-43/checkpoints/step_100.ckpt",
+                "checkpointing.load=/home/gyy/Downloads/1000.ckpt",
+                // "checkpointing.load=/home/gyy/Downloads/3500.ckpt",
                 // "checkpointing.load=model_zoo/ibrnet.ckpt",
             ],
         },
