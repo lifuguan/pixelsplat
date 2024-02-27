@@ -118,7 +118,7 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
         clip_w: int = 3,
         deterministic: bool = False,
         visualization_dump: Optional[dict] = None,
-    ) -> Gaussians:
+    ) :
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
 

@@ -19,12 +19,12 @@ from ....misc.heterogeneous_pairings import (
 class EpipolarSampling:
     features: Float[Tensor, "batch view other_view ray sample channel"]
     valid: Bool[Tensor, "batch view other_view ray"]
-    xy_ray: Float[Tensor, "batch view ray 2"]
+    xy_ray: Float[Tensor, "batch view c 2"]
     xy_sample: Float[Tensor, "batch view other_view ray sample 2"]
     xy_sample_near: Float[Tensor, "batch view other_view ray sample 2"]
     xy_sample_far: Float[Tensor, "batch view other_view ray sample 2"]
-    origins: Float[Tensor, "batch view ray 3"]
-    directions: Float[Tensor, "batch view ray 3"]
+    origins: Float[Tensor, "batch view a 3"]
+    directions: Float[Tensor, "batch view a 3"]
 
 
 class EpipolarSampler(nn.Module):
@@ -59,7 +59,7 @@ class EpipolarSampler(nn.Module):
         clip_w: int,
     ) -> EpipolarSampling:
         device = images.device
-        b, v, _, _, _ = images.shape
+        b, v, _, h, w = images.shape
 
         # Generate the rays that are projected onto other views.
         xy_ray, origins, directions = self.generate_image_rays(

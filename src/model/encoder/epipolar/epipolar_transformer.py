@@ -82,7 +82,7 @@ class EpipolarTransformer(nn.Module):
         far: Float[Tensor, "batch view"],
         clip_h: int,
         clip_w: int,
-    ) -> tuple[Float[Tensor, "batch view channel height width"], EpipolarSampling,]:
+    ) -> tuple[Float[Tensor, "batch view channel a b"], EpipolarSampling,]:
         b, v, _, h, w = features.shape
 
         # If needed, apply downscaling.

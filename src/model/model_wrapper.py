@@ -170,7 +170,7 @@ class ModelWrapper(LightningModule):
             features=self.encoder(batch["context"], self.global_step,None,4,4)
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,k:k+2,:,:,:],3,3,True)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],3,3,True)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
