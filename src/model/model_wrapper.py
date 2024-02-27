@@ -85,18 +85,18 @@ def random_crop(data,size=[160,224] ,center=None):
     else:
         center_h = np.random.randint(low=out_h // 2 + 1, high=h - out_h // 2 - 1)
         center_w = np.random.randint(low=out_w // 2 + 1, high=w - out_w // 2 - 1)
-    batch['context']['image'] = batch['context']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
-    batch['target']['image'] = batch['target']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
+    # batch['context']['image'] = batch['context']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
+    # batch['target']['image'] = batch['target']['image'][:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
 
-    batch['context']['intrinsics'][:,:,0,0]=batch['context']['intrinsics'][:,:,0,0]*w/out_w
-    batch['context']['intrinsics'][:,:,1,1]=batch['context']['intrinsics'][:,:,1,1]*h/out_h
-    batch['context']['intrinsics'][:,:,0,2]=(batch['context']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
-    batch['context']['intrinsics'][:,:,1,2]=(batch['context']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
+    # batch['context']['intrinsics'][:,:,0,0]=batch['context']['intrinsics'][:,:,0,0]*w/out_w
+    # batch['context']['intrinsics'][:,:,1,1]=batch['context']['intrinsics'][:,:,1,1]*h/out_h
+    # batch['context']['intrinsics'][:,:,0,2]=(batch['context']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
+    # batch['context']['intrinsics'][:,:,1,2]=(batch['context']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
 
-    batch['target']['intrinsics'][:,:,0,0]=batch['target']['intrinsics'][:,:,0,0]*w/out_w
-    batch['target']['intrinsics'][:,:,1,1]=batch['target']['intrinsics'][:,:,1,1]*h/out_h
-    batch['target']['intrinsics'][:,:,0,2]=(batch['target']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
-    batch['target']['intrinsics'][:,:,1,2]=(batch['target']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
+    # batch['target']['intrinsics'][:,:,0,0]=batch['target']['intrinsics'][:,:,0,0]*w/out_w
+    # batch['target']['intrinsics'][:,:,1,1]=batch['target']['intrinsics'][:,:,1,1]*h/out_h
+    # batch['target']['intrinsics'][:,:,0,2]=(batch['target']['intrinsics'][:,:,0,2]*w-center_w+out_w // 2)/out_w
+    # batch['target']['intrinsics'][:,:,1,2]=(batch['target']['intrinsics'][:,:,1,2]*h-center_h+out_h // 2)/out_h
 
 
 
@@ -165,34 +165,12 @@ class ModelWrapper(LightningModule):
         opt.zero_grad()
         out_h=160
         out_w=224
-        # row=ceil(h/crop_h)
-        # col=ceil(w/crop_w)
-        # gt_full=data['target']['image'].squeeze(0).squeeze(0)
-        # for i in range(row):
-        #     for j in range(col):
-        #         if i==row-1 and j==col-1:
-        #             data_crop=random_crop(  batch,size=[crop_h,crop_w],center=(int(h-crop_h//2),int(w-crop_w//2)))
-        #         elif i==row-1:#最后一行
-        #             data_crop=random_crop(  batch,size=[crop_h,crop_w],center=(int(h-crop_h//2),int(crop_w//2+j*crop_w)))
-        #         elif j==col-1:#z最后一列
-        #             data_crop=random_crop( batch,size=[crop_h,crop_w],center=(int(crop_h//2+i*crop_h),int(w-crop_w//2)))
-        #         else:
-        #             data_crop=random_crop( batch,size=[crop_h,crop_w],center=(int(crop_h//2+i*crop_h),int(crop_w//2+j*crop_w)))  
-        #         # Run the model.
-        #         for k in range(batch["context"]["image"].shape[1] - 1):
-        #             tmp_batch = self.batch_cut(data_crop["context"],k)
-        #             tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
-        #             if k == 0 and i+j==0:
-        #                 gaussians: Gaussians = tmp_gaussians
-        #             else:
-        #                 gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-        #                 gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-        #                 gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-        #                 gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
         with torch.no_grad():
+
+            features=self.encoder(batch["context"], self.global_step,None,4,4)
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,k:k+2,:,:,:],3,3,True)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
@@ -268,9 +246,10 @@ class ModelWrapper(LightningModule):
                 else:
                     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(out_w//2+j*out_w)))  
                 # Run the model.
+                features = self.encoder(batch["context"], self.global_step,None,4,4) 
                 for k in range(batch["context"]["image"].shape[1] - 1):
                     tmp_batch = self.batch_cut(data_crop["context"],k)
-                    tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
+                    tmp_gaussians = self.encoder(tmp_batch, self.global_step,features[:,k:k+2,:,:,:],i,j,True)
                     if k == 0 :
                         gaussians: Gaussians = tmp_gaussians
                     else:
@@ -287,6 +266,7 @@ class ModelWrapper(LightningModule):
                     (h, w),
                     depth_mode=self.train_cfg.depth_mode,
                 )
+                output_1.color = output_1.color[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
                 output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
         opt.step()
         target_gt = batch["target"]["image"]

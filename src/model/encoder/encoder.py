@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
-from torch import nn
+from torch import Tensor,nn
 
 from ...dataset.types import BatchedViews, DataShim
 from ..types import Gaussians
@@ -20,6 +20,9 @@ class Encoder(nn.Module, ABC, Generic[T]):
     def forward(
         self,
         context: BatchedViews,
+        features: Tensor,
+        clip_h: int,
+        clip_w: int,
         deterministic: bool,
     ) -> Gaussians:
         pass

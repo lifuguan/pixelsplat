@@ -80,6 +80,8 @@ class EpipolarTransformer(nn.Module):
         intrinsics: Float[Tensor, "batch view 3 3"],
         near: Float[Tensor, "batch view"],
         far: Float[Tensor, "batch view"],
+        clip_h: int,
+        clip_w: int,
     ) -> tuple[Float[Tensor, "batch view channel height width"], EpipolarSampling,]:
         b, v, _, h, w = features.shape
 
@@ -91,7 +93,7 @@ class EpipolarTransformer(nn.Module):
 
         # Get the samples used for epipolar attention.
         sampling = self.epipolar_sampler.forward(
-            features, extrinsics, intrinsics, near, far
+            features, extrinsics, intrinsics, near, far,clip_h,clip_w,
         )
 
         if self.cfg.num_octaves > 0:
@@ -124,23 +126,44 @@ class EpipolarTransformer(nn.Module):
         #     q = q.mean(dim=2, keepdims=True)
 
         # Run the transformer.
-        kv = rearrange(features, "b v c h w -> (b v h w) () c")
-        features = self.transformer.forward(
-            kv,
-            rearrange(q, "b v () r s c -> (b v r) s c"),
-            b=b,
-            v=v,
-            h=h // self.cfg.downscale,
-            w=w // self.cfg.downscale,
-        )
-        features = rearrange(
-            features,
-            "(b v h w) () c -> b v c h w",
-            b=b,
-            v=v,
-            h=h // self.cfg.downscale,
-            w=w // self.cfg.downscale,
-        )
+        if clip_h!=3:
+            features=features[:,:,:,h//8*clip_h:h//8*(clip_h+1),w//8*clip_w:w//8*(clip_w+1)]
+            kv = rearrange(features, "b v c h w -> (b v h w) () c")
+            features = self.transformer.forward(
+                kv,       # 当作query
+                # rearrange(q, "b v ov r s c -> (b v ov r) s c"),    # 当作 key & value
+                rearrange(q, "b v () r s c -> (b v r) s c"),
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale//2,
+                w=w // self.cfg.downscale//2,
+            )
+            features = rearrange(
+                features,
+                "(b v h w) () c -> b v c h w",
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale//2,
+                w=w // self.cfg.downscale//2,
+            )
+        else:
+            kv = rearrange(features, "b v c h w -> (b v h w) () c")
+            features = self.transformer.forward(
+                kv,       # 当作query
+                # rearrange(q, "b v ov r s c -> (b v ov r) s c"),    # 当作 key & value
+                rearrange(q, "b v () r s c -> (b v r) s c"),
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale,
+                w=w // self.cfg.downscale,
+            )
+            features = rearrange(
+                features,
+                "(b v h w) () c -> b v c h w",
+                b=b,
+                v=v,
+                h=h // self.cfg.downscale,
+            )
 
         # If needed, apply upscaling.
         if self.upscaler is not None:
