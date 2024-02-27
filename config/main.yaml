@@ -6,8 +6,8 @@ defaults:
   - loss: [mse, density]
 
 wandb:
-  project: pixelsplat
-  entity: gyy456
+  project: rg-gs
+  entity: lifuguan
   name: placeholder
   mode: disabled
 
@@ -37,12 +37,12 @@ data_loader:
     seed: 3456
 
 optimizer:
-  lr: 1.5e-4
-  warm_up_steps: 1000
+  lr: 5e-5
+  warm_up_steps: 50
 
 checkpointing:
   load: null
-  every_n_train_steps: 500
+  every_n_train_steps: 200
   save_top_k: -1
 
 train:
@@ -55,6 +55,6 @@ test:
 seed: 111123
 
 trainer:
-  max_steps: 32000
+  max_steps: 1400
   val_check_interval: 10
   gradient_clip_val: 0.5

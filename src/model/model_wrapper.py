@@ -163,33 +163,10 @@ class ModelWrapper(LightningModule):
         # gaussians = self.encoder(batch["context"], self.global_step, False)
 
         opt = self.optimizers()
+        sch = self.lr_schedulers()
         opt.zero_grad()
-        out_h=160
-        out_w=224
-        # row=ceil(h/crop_h)
-        # col=ceil(w/crop_w)
-        # gt_full=data['target']['image'].squeeze(0).squeeze(0)
-        # for i in range(row):
-        #     for j in range(col):
-        #         if i==row-1 and j==col-1:
-        #             data_crop=random_crop(  batch,size=[crop_h,crop_w],center=(int(h-crop_h//2),int(w-crop_w//2)))
-        #         elif i==row-1:#最后一行
-        #             data_crop=random_crop(  batch,size=[crop_h,crop_w],center=(int(h-crop_h//2),int(crop_w//2+j*crop_w)))
-        #         elif j==col-1:#z最后一列
-        #             data_crop=random_crop( batch,size=[crop_h,crop_w],center=(int(crop_h//2+i*crop_h),int(w-crop_w//2)))
-        #         else:
-        #             data_crop=random_crop( batch,size=[crop_h,crop_w],center=(int(crop_h//2+i*crop_h),int(crop_w//2+j*crop_w)))  
-        #         # Run the model.
-        #         for k in range(batch["context"]["image"].shape[1] - 1):
-        #             tmp_batch = self.batch_cut(data_crop["context"],k)
-        #             tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
-        #             if k == 0 and i+j==0:
-        #                 gaussians: Gaussians = tmp_gaussians
-        #             else:
-        #                 gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-        #                 gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-        #                 gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-        #                 gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+        out_h=176
+        out_w=240
         with torch.no_grad():
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
@@ -221,7 +198,7 @@ class ModelWrapper(LightningModule):
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
         self.log("loss/total", total_loss)
-        self.manual_backward(total_loss)
+        total_loss.backward()
         rgb_pred_grad=output.color.grad
 
         row=ceil(h/out_h)
@@ -269,9 +246,8 @@ class ModelWrapper(LightningModule):
                 # self.log("loss/total", total_loss)
                 # total_loss.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
                 output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
-        # torch.nn.utils.clip_grad_value_(self.parameters(),clip_value=0.5)
         self.clip_gradients(opt, gradient_clip_val=0.5, gradient_clip_algorithm="norm")        
-        opt.step()
+        opt.step(); sch.step()
         target_gt = batch["target"]["image"]
         # Compute metrics.
         psnr_probabilistic = compute_psnr(
@@ -322,7 +298,7 @@ class ModelWrapper(LightningModule):
         with self.benchmarker.time("encoder"):
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians,_ = self.encoder(tmp_batch, self.global_step)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
@@ -376,11 +352,12 @@ class ModelWrapper(LightningModule):
         (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
-        for index, color in zip(batch["target"]["index"][0], output.color[0]):
-            save_image(color, path / scene / f"color/{index:0>2}.png")
+        # for index, color in zip(batch["target"]["index"][0], output.color[0]):
+        #     save_image(color, path / scene / f"color/{index:0>2}.png")
         self.current_step += 1
-        if self.current_step==6:
+        if self.current_step==3:
             print(f'mean_psnr,{self.psnr/self.current_step}')
+
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
         self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")

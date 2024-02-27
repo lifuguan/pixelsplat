@@ -61,7 +61,7 @@ class LLFFTestDataset(IterableDataset):
         self.node_id_to_idx_list = []
         self.train_view_graphs = []
 
-        # self.image_size = (160, 244) #训练的时候
+        # self.image_size = (352, 480) #测试的时候
         self.image_size = (320, 448) #测试的时候
         out_w = 448
         self.ratio = out_w / 504
