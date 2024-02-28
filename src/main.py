@@ -96,11 +96,10 @@ def train(cfg_dict: DictConfig):
         if torch.cuda.device_count() > 1
         else "auto",
         callbacks=callbacks,
-        # val_check_interval=cfg.trainer.val_check_interval,
         enable_progress_bar=False,
-        # gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=-1,
-        limit_val_batches=0.0
+        limit_val_batches=0.0,
+        log_every_n_steps=2
     )
 
     encoder, encoder_visualizer = get_encoder(cfg.model.encoder)
@@ -115,8 +114,6 @@ def train(cfg_dict: DictConfig):
         get_losses(cfg.loss),
         step_tracker,
     )
-    checkpoint = torch.load(checkpoint_path)
-    # model_wrapper.load_state_dict(checkpoint['state_dict'])
     data_module = DataModule(cfg.dataset, cfg.data_loader, step_tracker)
 
     if cfg.mode == "train":
