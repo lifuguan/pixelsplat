@@ -13,7 +13,7 @@ num_surfaces: 1
 predict_opacity: false
 near_disparity: 3.0
 
-gaussians_per_pixel: 3
+gaussians_per_pixel: 2
 
 gaussian_adapter:
   gaussian_scale_min: 0.5

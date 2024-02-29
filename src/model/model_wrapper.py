@@ -160,7 +160,7 @@ class ModelWrapper(LightningModule):
 
         # Run the model.
         # gaussians = self.encoder(batch["context"], self.global_step, False)
-
+        lr  =self.lr_schedulers()
         opt = self.optimizers()
         opt.zero_grad()
         out_h=160
@@ -269,6 +269,7 @@ class ModelWrapper(LightningModule):
                 output_1.color = output_1.color[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
                 output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
         opt.step()
+        lr.step()
         target_gt = batch["target"]["image"]
         # Compute metrics.
         psnr_probabilistic = compute_psnr(

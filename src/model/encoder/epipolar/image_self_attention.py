@@ -64,7 +64,7 @@ class ImageSelfAttention(nn.Module):
         # Append positional information to the tokens.
         _, _, nh, nw = tokens.shape
         if nh <20:
-            index= self.index//7   #查看是第几个crop
+            index= self.index//4   #查看是第几个crop
             self.index=self.index+1
             i=index//2
             j=index%2   #行和列的缩影
