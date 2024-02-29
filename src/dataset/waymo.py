@@ -12,60 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import os
 import numpy as np
 import imageio
 import torch
+from torch.utils.data import IterableDataset
+import glob
 import sys
 sys.path.append('../')
-from torch.utils.data import Dataset
-from .data_utils import get_nearby_view_ids, random_crop, get_nearest_pose_ids
+from .data_utils import get_nearby_view_ids, loader_resize, random_crop, get_nearest_pose_ids
 from .llff_data_utils import load_llff_data, batch_parse_llff_poses
-from ..pose_util import PoseInitializer
+from .shims.crop_shim import apply_crop_shim
 
+from dataclasses import dataclass
+from typing import Literal
+from pathlib import Path
+from .dataset import DatasetCfgCommon
+    
 import random
 from .base_utils import downsample_gaussian_blur
-import cv2
+    
 
-
-def loader_resize(rgb, camera, src_rgbs, src_cameras, size=(400, 600)):
-    h, w = rgb.shape[:2]
-    out_h, out_w = size[0], size[1]
-    intrinsics = camera[2:18].reshape(4, 4)
-    src_intrinsics = src_cameras[:, 2:18].reshape(-1, 4, 4)
-    if out_w >= w or out_h >= h:
-        return rgb, camera, src_rgbs, src_cameras, intrinsics[..., :3, :3], src_intrinsics[..., :3, :3]
-
-    ratio_y = out_h / h
-    ratio_x = out_w / w
-    camera[0] = out_h
-    camera[1] = out_w
-    camera[2:18] = intrinsics.flatten()
-    src_cameras[:, 0] = out_h
-    src_cameras[:, 1] = out_w
-    src_cameras[:, 2:18] = src_intrinsics.reshape(-1, 16)
-    rgb = cv2.resize(downsample_gaussian_blur(
-                rgb, ratio_y), (out_w, out_h), interpolation=cv2.INTER_LINEAR)
-    src_rgbs = [cv2.resize(downsample_gaussian_blur(
-                src_rgb, ratio_y), (out_w, out_h), interpolation=cv2.INTER_LINEAR) for src_rgb in src_rgbs]
-    src_rgbs = np.stack(src_rgbs, axis=0)
-    return rgb, camera, src_rgbs, src_cameras, intrinsics[..., :3, :3], src_intrinsics[..., :3, :3]
-
-class WaymoStaticDataset(Dataset):
+class WaymoStaticDataset(IterableDataset):
     ORIGINAL_SIZE = [[1280, 1920], [1280, 1920], [1280, 1920], [884, 1920], [884, 1920]]
     OPENCV2DATASET = np.array(
         [[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]]
     )
-    def __init__(self, args, mode, scenes=(), random_crop=True, **kwargs):
-        self.folder_path = os.path.join('data/waymo')
+    
+    def __init__(self, args, mode, step_tacker, **kwargs):
+        self.folder_path = os.path.join('data/waymo/processed/training')
         self.dataset_name = 'waymo'
         self.pose_noise_level = 0
 
         self.args = args
-        self.mode = mode # if args.render_video is not True else "train"  # train / test / validation
-        self.num_source_views = args.num_source_views
-        self.random_crop = random_crop
+        self.mode = mode  # train / test / validation
+        # self.num_source_views = args.view_sampler.num_context_views
+        self.num_source_views = 5
+        self.llffhold = 8
+        self.random_crop = False
+        self.rectify_inplane_rotation = False
+        
         self.render_rgb_files = []
         self.render_intrinsics = []
         self.render_poses = []
@@ -75,70 +61,54 @@ class WaymoStaticDataset(Dataset):
         self.train_intrinsics = []
         self.train_poses = []
         self.train_rgb_files = []
-        self.idx_to_node_id_list = []
-        self.node_id_to_idx_list = []
-        self.train_view_graphs = []
-    
-        self.image_size = (504,760)
-        self.ratio = self.image_size[1] / 1920
+
+        # self.image_size = (176, 240)
+        self.image_size = (352, 480)
+
         all_scenes = os.listdir(self.folder_path)
-    
-        
         
         ############     Wamyo Parameters     ############
         self.num_cams, self.camera_list =1, [0]
-        # self.num_cams, self.camera_list =3, [1, 0, 2]
-        
         self.start_timestep, self.end_timestep = 0, 198
-        if len(scenes) > 0:
-            if isinstance(scenes, str):
-                scenes = [scenes]
+        
+        if len(args.scene) > 0:
+            self.scenes = args.scene
         else:
-            scenes = all_scenes
+            self.scenes = all_scenes
 
-        print("loading {} for {}".format(scenes, mode))
-        print(f'[INFO] num scenes: {len(scenes)}')
-        for i, scene in enumerate(scenes):
+        print("loading {} for {}".format(self.scenes, mode))
+        print(f'[INFO] num scenes: {len(self.scenes)}')
+        for i, scene in enumerate(self.scenes):
             scene_path = os.path.join(self.folder_path, scene)
             
             rgb_files = []
-            i_test,count = [], 0
             for t in range(self.start_timestep, self.end_timestep):
                 for cam_idx in self.camera_list:
-                    if cam_idx == 0:
-                        i_test.append(count)
                     rgb_files.append(os.path.join(scene_path, "images", f"{t:03d}_{cam_idx}.jpg"))
-                    count += 1
             
             intrinsics, c2w_mats = self.load_calibrations(scene_path)
             
             
-            near_depth = 1
-            far_depth = 100
+            near_depth = 0.1
+            far_depth = 100.0
             
-            i_test = i_test[::self.args.llffhold] if mode != 'eval_pose' else []
+            i_test = np.arange(len(rgb_files))[::self.llffhold] if mode != 'eval_pose' else []
             i_train = np.array([j for j in np.arange(len(rgb_files)) if
                                 (j not in i_test and j not in i_test)])
-            
-            idx_to_node_id, node_id_to_idx = {}, {}
-            for j in range(i_train.shape[0]):
-                idx_to_node_id[j] = i_train[j]
-                node_id_to_idx[i_train[j]] = j
-            self.idx_to_node_id_list.append(idx_to_node_id)
-            self.node_id_to_idx_list.append(node_id_to_idx)
 
-            if self.mode == 'train' or self.mode == 'eval_pose':
+            if mode == 'train':
                 i_render = i_train
             else:
                 i_render = i_test
 
-            self.train_intrinsics.append(intrinsics[i_train])
+            
+            self.train_intrinsics.append([intrinsics] * len(i_train))
             self.train_poses.append(c2w_mats[i_train])
             self.train_rgb_files.append(np.array(rgb_files)[i_train].tolist())
             
             num_render = len(i_render)
             self.render_rgb_files.extend(np.array(rgb_files)[i_render].tolist())
-            self.render_intrinsics.extend(intrinsics[i_train])
+            self.render_intrinsics.extend([intrinsics] * num_render)
             self.render_poses.extend([c2w_mat for c2w_mat in c2w_mats[i_render]])
             self.render_depth_range.extend([[near_depth, far_depth]]*num_render)
             self.render_train_set_ids.extend([i]*num_render)
@@ -170,8 +140,7 @@ class WaymoStaticDataset(Dataset):
                 cx * self.image_size[1] / self.ORIGINAL_SIZE[i][1],
                 cy * self.image_size[0] / self.ORIGINAL_SIZE[i][0],
             )
-            # intrinsic = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
-            intrinsic = np.array([[fx, 0, cx,0], [0, fy, cy,0], [0, 0, 1, 0], [0, 0, 0, 1]])
+            intrinsic = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
             _intrinsics.append(intrinsic)
 
             # load camera extrinsics
@@ -218,7 +187,8 @@ class WaymoStaticDataset(Dataset):
 
         intrinsics = np.stack(intrinsics, axis=0)
         cam_to_worlds = np.stack(cam_to_worlds, axis=0)
-        return intrinsics, cam_to_worlds
+        return intrinsic, cam_to_worlds
+
 
 
     def get_data_one_batch(self, idx, nearby_view_id=None):
@@ -229,152 +199,121 @@ class WaymoStaticDataset(Dataset):
         return len(self.render_rgb_files)
 
     def __len__(self):
-        return len(self.render_rgb_files) * 100000 if self.mode == 'train' and self.args.render_video is not True else len(self.render_rgb_files)
+        return len(self.render_rgb_files)
 
-    def __getitem__(self, idx):
-        idx = idx % len(self.render_rgb_files)
-        rgb_file = self.render_rgb_files[idx]
-        render_name = rgb_file[-9:-4]
-        rgb = imageio.imread(rgb_file).astype(np.float32) / 255.
-        render_pose = self.render_poses[idx]
-                
-        # translation = np.array([3, 0, 0])
-        # render_pose[:, 3] += np.dot(render_pose[:, :3], translation)
-        
-        intrinsics = self.render_intrinsics[idx]
-        depth_range = self.render_depth_range[idx]
+    def __iter__(self):
+        for idx in range(len(self.render_rgb_files)):
+            rgb_file = self.render_rgb_files[idx]
+            scene, img_idx = rgb_file.split("/")[4], rgb_file[-7:-4]
+            rgb = imageio.imread(rgb_file).astype(np.float32) / 255.
+            render_pose = self.render_poses[idx]
+            intrinsics = self.render_intrinsics[idx]
+            depth_range = self.render_depth_range[idx]
 
-        train_set_id = self.render_train_set_ids[idx]
-        train_rgb_files = self.train_rgb_files[train_set_id]
-        train_poses = self.train_poses[train_set_id]
-        train_intrinsics = self.train_intrinsics[train_set_id]
-        # view_graph = self.train_view_graphs[train_set_id]
-        idx_to_node_id = self.idx_to_node_id_list[train_set_id]
-        node_id_to_idx = self.node_id_to_idx_list[train_set_id]
+            train_set_id = self.render_train_set_ids[idx]
+            train_rgb_files = self.train_rgb_files[train_set_id]
+            train_poses = self.train_poses[train_set_id]
+            train_intrinsics = self.train_intrinsics[train_set_id]
 
-        img_size = rgb.shape[:2]
-        camera = np.concatenate((list(self.image_size), intrinsics.flatten(),
-                                 render_pose.flatten())).astype(np.float32)
+            img_size = rgb.shape[:2]
+            camera = np.concatenate((list(img_size), intrinsics.flatten(),
+                                    render_pose.flatten())).astype(np.float32)
 
-        if self.mode == 'train':
-            if rgb_file in train_rgb_files:
+            if self.mode == 'train':
                 id_render = train_rgb_files.index(rgb_file)
+                subsample_factor = np.random.choice(np.arange(1, 4), p=[0.2, 0.45, 0.35])
+                # num_select = self.num_source_views + np.random.randint(low=-2, high=3)
+                num_select = self.num_source_views
+                
             else:
                 id_render = -1
-            subsample_factor = np.random.choice(np.arange(1, 4), p=[0.2, 0.45, 0.35])
-            num_select = self.num_source_views + np.random.randint(low=-2, high=2)
-        else:
-            id_render = -1
-            subsample_factor = 1
-            num_select = self.num_source_views
+                subsample_factor = 1
+                num_select = self.num_source_views
 
-        nearest_pose_ids = None
-        # num_select = min(self.num_source_views*subsample_factor, 28)
-        if self.args.selection_rule == 'pose' or self.mode != 'train':
+            nearest_pose_ids = None
+            # num_select = min(self.num_source_views*subsample_factor, 22)
             nearest_pose_ids = get_nearest_pose_ids(render_pose,
                                                     train_poses,
                                                     num_select=num_select,
                                                     tar_id=id_render,
                                                     angular_dist_method='dist')
-        elif self.args.selection_rule == 'view_graph':
-            nearest_pose_ids = get_nearby_view_ids(target_id=id_render,
-                                                   graph=view_graph['graph'],
-                                                   idx_to_node_id=idx_to_node_id,
-                                                   node_id_to_idx=node_id_to_idx,
-                                                   num_select=num_select)
-        else:
-            raise NotImplementedError
-        
-        if self.mode == 'eval_pose' and self.nearby_view_id is not None:
-            nearest_pose_ids = np.array([self.nearby_view_id])
 
-        nearest_pose_ids = np.random.choice(nearest_pose_ids, min(num_select, len(nearest_pose_ids)), replace=False)
-        # print(f'nearest pose ids: {nearest_pose_ids}')
+            nearest_pose_ids = np.random.choice(nearest_pose_ids, min(num_select, len(nearest_pose_ids)), replace=False)
 
-        assert id_render not in nearest_pose_ids
-        # occasionally include input image
-        if np.random.choice([0, 1], p=[0.995, 0.005]) and self.mode == 'train':
-            nearest_pose_ids[np.random.choice(len(nearest_pose_ids))] = id_render
+            assert id_render not in nearest_pose_ids
+            # occasionally include input image
+            if np.random.choice([0, 1], p=[0.995, 0.005]) and self.mode == 'train':
+                nearest_pose_ids[np.random.choice(len(nearest_pose_ids))] = id_render
 
-        # relative_poses = None if self.args.selection_rule == 'pose' else \
-        #                  get_relative_poses(idx, view_graph['two_view_geometries'], idx_to_node_id, nearest_pose_ids)
+            src_rgbs = []
+            src_cameras = []
+            src_intrinsics, src_extrinsics = [], []
+            for id in nearest_pose_ids:
+                src_rgb = imageio.imread(train_rgb_files[id]).astype(np.float32) / 255.
+                train_pose = train_poses[id]
+                train_intrinsics_ = train_intrinsics[id]
+                src_extrinsics.append(train_pose)
+                src_intrinsics.append(train_intrinsics_)
+                if self.rectify_inplane_rotation:
+                    train_pose, src_rgb = rectify_inplane_rotation(train_pose, render_pose, src_rgb)
 
-        src_name = []
-        src_rgbs = []
-        src_cameras = []
-        src_intrinsics, src_extrinsics = [], []
-        for id in nearest_pose_ids:
-            src_rgb = imageio.imread(train_rgb_files[id]).astype(np.float32) / 255.
-            src_name.append(train_rgb_files[id][-9:-4])
-            train_pose = train_poses[id]
-            train_intrinsics_ = train_intrinsics[id]
+                src_rgbs.append(src_rgb)
+                img_size = src_rgb.shape[:2]
+                src_camera = np.concatenate((list(img_size), train_intrinsics_.flatten(),
+                                            train_pose.flatten())).astype(np.float32)
+                src_cameras.append(src_camera)
+
+            src_rgbs = np.stack(src_rgbs, axis=0)
+            src_cameras = np.stack(src_cameras, axis=0)
+            src_intrinsics, src_extrinsics = np.stack(src_intrinsics, axis=0), np.stack(src_extrinsics, axis=0)
+            # if self.mode == 'train' and random.randint(1, 100) < 75:
+            #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = random_crop(rgb,camera,src_rgbs,src_cameras, size=self.image_size, center=None)
+            # elif self.mode == 'train':
+            #     rgb, camera, src_rgbs, src_cameras, intrinsics, src_intrinsics = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
+            rgb, _, src_rgbs, _, _, _ = loader_resize(rgb,camera,src_rgbs,src_cameras, size=self.image_size)
             
-            src_intrinsics.append(train_intrinsics_)
-            src_extrinsics.append(train_pose)
-            src_rgbs.append(src_rgb)
-            img_size = src_rgb.shape[:2]
-            src_camera = np.concatenate((list(self.image_size), train_intrinsics_.flatten(),
-                                         train_pose.flatten())).astype(np.float32)
-            src_cameras.append(src_camera)
+            src_extrinsics = torch.from_numpy(src_extrinsics).float()
+            extrinsics = torch.from_numpy(render_pose).unsqueeze(0).float()
+            
+            src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size)
+            intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size)
 
-        src_rgbs = np.stack(src_rgbs, axis=0)
-        src_cameras = np.stack(src_cameras, axis=0)
+            depth_range = torch.tensor([depth_range[0] * 0.9, depth_range[1] * 1.5])
 
-        src_intrinsics, src_extrinsics = np.stack(src_intrinsics, axis=0), np.stack(src_extrinsics, axis=0)
-    
-        pix_rgb, pix_camera, pix_src_rgbs, pix_src_cameras, pix_intrinsics, pix_src_intrinsics = loader_resize(rgb,camera.copy(),src_rgbs,src_cameras.copy(), size=self.image_size)
-        # pix_rgb, camera, pix_src_rgbs, src_cameras, _, _ = loader_resize(rgb,camera.copy(),src_rgbs,src_cameras.copy(), size=self.image_size)
-        # pix_rgb = rgb
-        # pix_src_rgbs = src_rgbs
-        pix_src_extrinsics = torch.from_numpy(src_extrinsics).float()
-        pix_extrinsics = torch.from_numpy(render_pose).unsqueeze(0).float()
+            # Resize the world to make the baseline 1.
+            if src_extrinsics.shape[0] == 2:
+                a, b = src_extrinsics[:, :3, 3]
+                scale = (a - b).norm()
+                if scale < 0.001:
+                    print(
+                        f"Skipped {scene} because of insufficient baseline "
+                        f"{scale:.6f}"
+                    )
+                src_extrinsics[:, :3, 3] /= scale
+                extrinsics[:, :3, 3] /= scale
+            else:
+                scale = 1
+                
+            example = {
+                    "context": {
+                            "extrinsics": src_extrinsics,
+                            "intrinsics": src_intrinsics,
+                            "image": torch.from_numpy(src_rgbs[..., :3]).permute(0, 3, 1, 2),
+                            "near":  (depth_range[0].repeat(num_select) / scale).float(),
+                            "far": (depth_range[1].repeat(num_select) / scale).float(),
+                            "index": torch.from_numpy(nearest_pose_ids),
+                    },
+                    "target": {
+                            "extrinsics": extrinsics,
+                            "intrinsics": intrinsics,
+                            "image": torch.from_numpy(rgb[..., :3]).unsqueeze(0).permute(0, 3, 1, 2),
+                            "near": (depth_range[0].unsqueeze(0) / scale).float(),
+                            "far": (depth_range[1].unsqueeze(0) / scale).float(),
+                            "index": torch.tensor([int(img_idx)]),
+                    
+                    },"scene":scene}
+            yield apply_crop_shim(example, tuple(self.image_size))
         
-        pix_src_intrinsics = self.normalize_intrinsics(torch.from_numpy(src_intrinsics[:,:3,:3]).float(), self.image_size)
-        pix_intrinsics = self.normalize_intrinsics(torch.from_numpy(intrinsics[:3,:3]).unsqueeze(0).float(), self.image_size)
-
-        
-        depth_range = torch.tensor([depth_range[0] * 0.9, depth_range[1] * 1.6], dtype=torch.float32)
-
-        # Resize the world to make the baseline 1.
-        if pix_src_extrinsics.shape[0] == 2:
-            a, b = pix_src_extrinsics[:, :3, 3]
-            scale = (a - b).norm()
-            if scale < 0.001:
-                print(
-                    f"Skipped {scene} because of insufficient baseline "
-                    f"{scale:.6f}"
-                )
-            pix_src_extrinsics[:, :3, 3] /= scale
-            pix_extrinsics[:, :3, 3] /= scale
-        else:
-            scale = 1
-
-        
-        return {'rgb': torch.from_numpy(pix_rgb[..., :3]),
-                'camera': torch.from_numpy(camera),
-                'rgb_path': rgb_file,
-                'src_rgbs': torch.from_numpy(pix_src_rgbs[..., :3]),
-                'src_cameras': torch.from_numpy( src_cameras),
-                'depth_range': depth_range,
-                'idx': idx,
-                'scaled_shape': (0, 0), # (378, 504)
-                "context": {
-                        "extrinsics": pix_src_extrinsics,
-                        "intrinsics": pix_src_intrinsics,
-                        "image": torch.from_numpy(pix_src_rgbs[..., :3]).permute(0, 3, 1, 2),
-                        "near":  depth_range[0].repeat(num_select) / scale,
-                        "far": depth_range[1].repeat(num_select) / scale,
-                        "index": src_name,
-                },
-                "target": {
-                        "extrinsics": pix_extrinsics,
-                        "intrinsics": pix_intrinsics,
-                        "image": torch.from_numpy(pix_rgb[..., :3]).unsqueeze(0).permute(0, 3, 1, 2),
-                        "near": depth_range[0].unsqueeze(0) / scale,
-                        "far": depth_range[1].unsqueeze(0) / scale,
-                        "index": render_name,
-                },
-                }
     def normalize_intrinsics(self, intrinsics, img_size):
         h, w = img_size
         # 归一化内参矩阵

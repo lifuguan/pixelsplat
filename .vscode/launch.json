@@ -99,145 +99,26 @@
             }
         },
         {
-            "name": "Generate Evaluation Index",
+            "name": "Train (waymo)",
             "type": "python",
             "request": "launch",
-            "module": "src.scripts.generate_evaluation_index",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
+                "wandb.mode=disabled",
+                "+experiment=waymo",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                
+                "++dataset.scene=['019']", // 是否逐场景
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "7",
             }
-        },
-        {
-            "name": "Compute Metrics",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.compute_metrics",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k_video",
-            ],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-            }
-        },
-        {
-            "name": "Paper: Generate Comparison Table",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_comparison_table",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=ablation",
-            ]
-        },
-        {
-            "name": "Paper: Generate Image Comparison",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_image_comparison",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-        },
-        {
-            "name": "Paper: Generate Ablation Image Comparison",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_ablation_image_comparison",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=ablation",
-            ]
-        },
-        {
-            "name": "Paper: Generate Epipolar Sampling Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_epipolar_sampling_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k",
-            ]
-        },
-        {
-            "name": "Paper: Generate Point Cloud Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_point_cloud_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Sampling Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_sampling_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Attention Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_attention_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Benchmark Table",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_benchmark_table",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k",
-            ]
-        },
-        {
-            "name": "Generate Video Evaluation Index",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.generate_video_evaluation_index",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [],
-        },
-        {
-            "name": "Dump Launch Configurations",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.dump_launch_configs",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [],
         },
     ]
 }
