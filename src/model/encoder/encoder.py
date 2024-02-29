@@ -20,6 +20,7 @@ class Encoder(nn.Module, ABC, Generic[T]):
     def forward(
         self,
         context: BatchedViews,
+        global_step: int,
         features: Tensor,
         clip_h: int,
         clip_w: int,

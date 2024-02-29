@@ -19,7 +19,7 @@ def rotate_sh(
     result = []
     for degree in range(isqrt(n)):
         # with torch.cuda.device(device):
-        sh_rotations = wigner_D(degree, alpha, beta, gamma).type(dtype)
+        sh_rotations = wigner_D(torch.tensor(degree).to(device), alpha, beta, gamma).type(dtype)
         sh_rotated = einsum(
             sh_rotations,
             sh_coefficients[..., degree**2 : (degree + 1) ** 2],
