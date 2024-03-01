@@ -115,6 +115,7 @@ class DataModule(LightningDataModule):
         return DataLoader(
             dataset,
             self.data_loader_cfg.test.batch_size,
+            shuffle=False,
             num_workers=self.data_loader_cfg.test.num_workers,
             generator=self.get_generator(self.data_loader_cfg.test),
             worker_init_fn=worker_init_fn,

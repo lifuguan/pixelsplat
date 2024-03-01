@@ -63,7 +63,8 @@ class WaymoStaticDataset(IterableDataset):
         self.train_rgb_files = []
 
         self.image_size = (176, 240)
-        self.ratio = self.image_size[1] / 1920
+        # self.image_size = (352, 480)
+
         all_scenes = os.listdir(self.folder_path)
         
         ############     Wamyo Parameters     ############
@@ -98,7 +99,7 @@ class WaymoStaticDataset(IterableDataset):
             if mode == 'train':
                 i_render = i_train
             else:
-                i_render = i_test
+                i_render = i_train
 
             
             self.train_intrinsics.append([intrinsics] * len(i_train))

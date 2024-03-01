@@ -112,7 +112,7 @@
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4",
+                "CUDA_VISIBLE_DEVICES": "7",
             },
             "name": "Test (waymo)",
             "type": "python",

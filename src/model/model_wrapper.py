@@ -132,7 +132,6 @@ class ModelWrapper(LightningModule):
 
         # Run the model.
         # gaussians = self.encoder(batch["context"], self.global_step, False)
-        start_time = time.time()
         
         device = batch["context"]["image"].device
         str_current_idx = [str(item) for item in batch["context"]["index"][0].cpu().numpy()]
@@ -144,6 +143,7 @@ class ModelWrapper(LightningModule):
         index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
         # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
         gaussians = None
+        start_time = time.time()
         # Run the model.
         for i in range(len(index_sort)-1):
             # index_sort[i] 代表会重新进行排序，可能需要重新训练
@@ -195,10 +195,11 @@ class ModelWrapper(LightningModule):
             print(
                 f"train step {self.global_step}; "
                 f"scene = {batch['scene']}; "
+                f"target = {batch['target']['index'].tolist()}; "
                 f"context = {batch['context']['index'].tolist()}; "
                 f"loss = {total_loss:.6f}; "
                 f"psnr = {psnr_probabilistic.mean():.2f}; "
-                f"time = {end_time - start_time:.2f}s; "
+                f"time = {end_time - start_time:.3f}s; "
                 f"unused indexs: {tuple(unused_indexs)}"
             )
 
@@ -208,35 +209,42 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch_, batch_idx):
-        batch: BatchedExample = self.data_shim(batch_)
+    def test_step(self, batch, batch_idx):
+        batch: BatchedExample = self.data_shim(batch)
 
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
 
-        visualization_dump = {}
+        device = batch["context"]["image"].device
+        str_current_idx = [str(item) for item in batch["context"]["index"][0].cpu().numpy()]
+        unused_indexs = set(list(self.last_ref_gaussians.keys())) - set(str_current_idx) 
+        if len(unused_indexs) > 0:
+            for unused_idx in tuple(unused_indexs):
+                del self.last_ref_gaussians[unused_idx]
 
-        # Render Gaussians.
-        # with self.benchmarker.time("encoder"):
-        #     gaussians = self.encoder(
-        #         batch["context"],
-        #         self.global_step,
-        #         deterministic=True,
-        #         visualization_dump=visualization_dump,
-        #     )
-        with self.benchmarker.time("encoder"):
-            for i in range(batch["context"]["image"].shape[1] - 1):
-                tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, False)
-                if i == 0:
-                    gaussians: Gaussians = tmp_gaussians
-                else:
-                    gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-                    gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-                    gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-                    gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+        index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
+        # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
+        gaussians = None
+        start_time = time.time()
+        # Run the model.
+        for i in range(len(index_sort)-1):
+            # index_sort[i] 代表会重新进行排序，可能需要重新训练
+            if str_current_idx[index_sort[i]] in self.last_ref_gaussians.keys(): # 如果已经计算过，则直接使用
+                tmp_gaussians = self.last_ref_gaussians[str_current_idx[index_sort[i]]].detach()
+            else:
+                tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1], device)
+                tmp_gaussians = self.encoder(tmp_batch, batch_idx, False)   # 计算当前帧的gaussian
+                self.last_ref_gaussians[str_current_idx[index_sort[i]]] = tmp_gaussians # 保存
+                
+            if gaussians is None:
+                gaussians: Gaussians = tmp_gaussians
+            else:
+                gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+                gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+                gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+                gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
             
         with self.benchmarker.time("decoder", num_calls=v):
             output = self.decoder.forward(
@@ -248,6 +256,7 @@ class ModelWrapper(LightningModule):
                 (h, w),
                 depth_mode="depth",
             )
+        end_time = time.time()
 
         if False:
             ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
@@ -269,10 +278,13 @@ class ModelWrapper(LightningModule):
 
         if self.global_rank == 0:
             print(
-                f"test step {self.current_step}; "
+                f"train step {self.global_step}; "
                 f"scene = {batch['scene']}; "
+                f"target = {batch['target']['index'].tolist()}; "
                 f"context = {batch['context']['index'].tolist()}; "
-                f"psnr = {psnr_probabilistic.mean():.2f}"
+                f"psnr = {psnr_probabilistic.mean():.2f}; "
+                f"time = {end_time - start_time:.2f}s; "
+                f"unused indexs: {tuple(unused_indexs)}"
             )
 
         # Save images.
