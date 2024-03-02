@@ -209,6 +209,80 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
+    def training_step(self, batch, batch_idx):
+        batch: BatchedExample = self.data_shim(batch)
+        _, _, _, h, w = batch["target"]["image"].shape
+
+        # Run the model.
+        # gaussians = self.encoder(batch["context"], self.global_step, False)
+        
+        device = batch["context"]["image"].device
+
+        index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
+        # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
+        gaussians = None
+        start_time = time.time()
+        # Run the model.
+        for i in range(len(index_sort)-1):
+   
+            tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1], device)
+            tmp_gaussians = self.encoder(tmp_batch, batch_idx, False)   # 计算当前帧的gaussian
+                
+            if gaussians is None:
+                gaussians: Gaussians = tmp_gaussians
+            else:
+                gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+                gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+                gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+                gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+            
+            
+            
+        output = self.decoder.forward(
+            gaussians,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+            depth_mode=self.train_cfg.depth_mode,
+        )
+        target_gt = batch["target"]["image"]
+
+        # Compute metrics.
+        psnr_probabilistic = compute_psnr(
+            rearrange(target_gt, "b v c h w -> (b v) c h w"),
+            rearrange(output.color, "b v c h w -> (b v) c h w"),
+        )
+        self.log("train/psnr_probabilistic", psnr_probabilistic.mean())
+
+        # Compute and log loss.
+        total_loss = 0
+        for loss_fn in self.losses:
+            loss = loss_fn.forward(output, batch, gaussians, self.global_step)
+            self.log(f"loss/{loss_fn.name}", loss)
+            total_loss = total_loss + loss
+        self.log("loss/total", total_loss)
+
+        end_time = time.time()
+        if self.global_rank == 0:
+            print(
+                f"train step {self.global_step}; "
+                f"scene = {batch['scene']}; "
+                f"target = {batch['target']['index'].tolist()}; "
+                f"context = {batch['context']['index'].tolist()}; "
+                f"loss = {total_loss:.6f}; "
+                f"psnr = {psnr_probabilistic.mean():.2f}; "
+                f"time = {end_time - start_time:.3f}s; "
+            )
+
+        # Tell the data loader processes about the current step.
+        if self.step_tracker is not None:
+            self.step_tracker.set_step(self.global_step)
+
+        return total_loss
+
+
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
 
@@ -278,7 +352,7 @@ class ModelWrapper(LightningModule):
 
         if self.global_rank == 0:
             print(
-                f"train step {self.global_step}; "
+                f"test step {self.global_step}; "
                 f"scene = {batch['scene']}; "
                 f"target = {batch['target']['index'].tolist()}; "
                 f"context = {batch['context']['index'].tolist()}; "
@@ -292,7 +366,7 @@ class ModelWrapper(LightningModule):
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
         for index, color in zip(batch["target"]["index"][0], output.color[0]):
-            save_image(color, path / scene / f"color/{index:0>2}.png")
+            save_image(color, path / scene / f"color/{index}.png")
         self.current_step += 1
 
     def on_test_end(self) -> None:

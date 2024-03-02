@@ -31,16 +31,18 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "wandb.mode=disabled",
+                "wandb.mode=online",
+                "wandb.name=waymo_generalized",
                 "+experiment=llff",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=outputs/2024-01-22/20-43-46/checkpoints/3500.ckpt",
+                // "checkpointing.load=outputs/2024-01-22/20-43-46/checkpoints/3500.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/1600.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "2",
+                "CUDA_VISIBLE_DEVICES": "2,3,4,5,6,7",
             }
         },
         {
@@ -73,18 +75,19 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "wandb.mode=disabled",
+                "wandb.mode=online",
+                "wandb.name=waymo_generalized",
                 "+experiment=waymo",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                // "checkpointing.load=outputs/waymo/12000.ckpt"
-                "checkpointing.load=outputs/llff_generalized/checkpoints/3500.ckpt",  // 泛化权重
-
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/1600.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "7",
+                "CUDA_VISIBLE_DEVICES": "2,3,4,5,6,7",
+                // "CUDA_VISIBLE_DEVICES": "7",
             }
         },
         {
@@ -112,7 +115,7 @@
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "7",
+                "CUDA_VISIBLE_DEVICES": "1",
             },
             "name": "Test (waymo)",
             "type": "python",
@@ -125,166 +128,157 @@
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "++dataset.scene=['019']",
+                "++dataset.scene=['003']",
                 "+experiment=waymo",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/waymo/12000.ckpt",
-                // "checkpointing.load=model_zoo/ibrnet.ckpt",
+                // "checkpointing.load=outputs/2024-03-01/22-39-59/checkpoints/800.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
             ],
         },
         {
-            "name": "Test Splatter",
+            "name": "ft-waymo: 003",
             "type": "python",
             "request": "launch",
-            "module": "src.scripts.test_splatter",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-            }
-        },
-        {
-            "name": "Generate Evaluation Index",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.generate_evaluation_index",
-            "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_003",
+                "+experiment=waymo",
+                "++dataset.scene=['003']",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "7",
             }
         },
         {
-            "name": "Compute Metrics",
+            "name": "ft-waymo: 036",
             "type": "python",
             "request": "launch",
-            "module": "src.scripts.compute_metrics",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k_video",
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_036",
+                "+experiment=waymo",
+                "++dataset.scene=['036']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "6",
             }
         },
         {
-            "name": "Paper: Generate Comparison Table",
+            "name": "ft-waymo: 019",
             "type": "python",
             "request": "launch",
-            "module": "src.paper.generate_comparison_table",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
-                "+experiment=re10k",
-                "+evaluation=ablation",
-            ]
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_019",
+                "+experiment=waymo",
+                "++dataset.scene=['019']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "5",
+            }
         },
         {
-            "name": "Paper: Generate Image Comparison",
+            "name": "ft-waymo: 069",
             "type": "python",
             "request": "launch",
-            "module": "src.paper.generate_image_comparison",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
-        },
-        {
-            "name": "Paper: Generate Ablation Image Comparison",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_ablation_image_comparison",
-            "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
-                "+experiment=re10k",
-                "+evaluation=ablation",
-            ]
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_069",
+                "+experiment=waymo",
+                "++dataset.scene=['069']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "4",
+            }
         },
         {
-            "name": "Paper: Generate Epipolar Sampling Figure",
+            "name": "ft-waymo: 081",
             "type": "python",
             "request": "launch",
-            "module": "src.paper.generate_epipolar_sampling_figure",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k",
-            ]
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_081",
+                "+experiment=waymo",
+                "++dataset.scene=['081']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "3",
+            }
         },
         {
-            "name": "Paper: Generate Point Cloud Figure",
+            "name": "ft-waymo: 126",
             "type": "python",
             "request": "launch",
-            "module": "src.paper.generate_point_cloud_figure",
+            "module": "src.main",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Sampling Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_sampling_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Attention Figure",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_attention_figure",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "checkpointing.load=checkpoints/re10k.ckpt"
-            ]
-        },
-        {
-            "name": "Paper: Generate Benchmark Table",
-            "type": "python",
-            "request": "launch",
-            "module": "src.paper.generate_benchmark_table",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                "+experiment=re10k",
-                "+evaluation=re10k",
-            ]
-        },
-        {
-            "name": "Generate Video Evaluation Index",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.generate_video_evaluation_index",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [],
-        },
-        {
-            "name": "Dump Launch Configurations",
-            "type": "python",
-            "request": "launch",
-            "module": "src.scripts.dump_launch_configs",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [],
+                "wandb.mode=online",
+                "wandb.name=ft_waymo_126",
+                "+experiment=waymo",
+                "++dataset.scene=['126']",
+                "data_loader.train.num_workers=0",
+                "data_loader.test.num_workers=0",
+                "data_loader.val.num_workers=0",
+                "data_loader.train.batch_size=1",
+                "++trainer.max_steps=23000",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room29.ckpt",
+                "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "2",
+            }
         },
     ]
 }
