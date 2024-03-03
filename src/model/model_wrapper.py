@@ -43,7 +43,10 @@ from .ply_export import export_ply
 from .encoder.epipolar.conversions import depth_to_relative_disparity
 import copy
 import numpy as np
-
+from math import exp
+from torch.autograd import Variable
+import torch.nn.functional as F
+import lpips
 @dataclass
 class OptimizerCfg:
     lr: float
@@ -71,7 +74,97 @@ class TrajectoryFn(Protocol):
         Float[Tensor, "batch view 3 3"],  # intrinsics
     ]:
         pass
+def gaussian(window_size, sigma):
+    gauss = torch.Tensor([
+        exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) \
+            for x in range(window_size)
+    ])
+    return gauss / gauss.sum()
 
+
+def create_window(window_size, channel):
+    _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
+    _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
+    window = Variable(_2D_window.expand(channel, 1, window_size, window_size).contiguous())
+    return window
+
+def img2lpips(lpips_loss, gt_image, pred_image):
+    return lpips_loss(gt_image * 2 - 1, pred_image * 2 - 1).item()
+def img2ssim(gt_image, pred_image):
+    """
+    Args:
+        gt_image: [B, 3, H, W]
+        pred_image: [B, 3, H, W]
+    """
+    return ssim(gt_image, pred_image).item()
+def _ssim(img1, img2, window, window_size, channel, size_average=True):
+    mu1 = F.conv2d(img1, window, padding=window_size//2, groups=channel)
+    mu2 = F.conv2d(img2, window, padding=window_size//2, groups=channel)
+
+    mu1_sq = mu1.pow(2)
+    mu2_sq = mu2.pow(2)
+    mu1_mu2 = mu1*mu2
+
+    sigma1_sq = F.conv2d(
+        img1 * img1, window, padding=window_size//2, groups=channel
+    ) - mu1_sq
+    sigma2_sq = F.conv2d(
+        img2 * img2, window, padding=window_size//2, groups=channel
+    ) - mu2_sq
+    sigma12 = F.conv2d(
+        img1 * img2, window, padding=window_size//2, groups=channel
+    ) - mu1_mu2
+
+    C1 = 0.01 ** 2
+    C2 = 0.03 ** 2
+
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((
+        mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+
+    if size_average:
+        return ssim_map.mean()
+    else:
+        return ssim_map.mean(1).mean(1).mean(1)
+
+
+class SSIM(torch.nn.Module):
+    def __init__(self, window_size=11, size_average = True):
+        super(SSIM, self).__init__()
+        self.window_size = window_size
+        self.size_average = size_average
+        self.channel = 1
+        self.window = create_window(window_size, self.channel)
+
+    def forward(self, img1, img2):
+        (_, channel, _, _) = img1.size()
+
+        if channel == self.channel and self.window.data.type() == img1.data.type():
+            window = self.window
+        else:
+            window = create_window(self.window_size, channel)
+            
+            if img1.is_cuda:
+                window = window.cuda(img1.get_device())
+            window = window.type_as(img1)
+            
+            self.window = window
+            self.channel = channel
+
+
+        return _ssim(img1, img2, window, self.window_size, channel, self.size_average)
+
+
+
+
+def ssim(img1, img2, window_size = 11, size_average = True):
+    (_, channel, _, _) = img1.size()
+    window = create_window(window_size, channel)
+
+    if img1.is_cuda:
+        window = window.cuda(img1.get_device())
+    window = window.type_as(img1)
+
+    return _ssim(img1, img2, window, window_size, channel, size_average)
 
 
 def random_crop(data,size=[160,224] ,center=None):
@@ -144,6 +237,8 @@ class ModelWrapper(LightningModule):
         self.current_step = 0
         self.psnr = 0
         self.automatic_optimization = False
+        self.ssim=0
+        self.pips=0
     def batch_cut(self, batch, i):
         return {
             'extrinsics': batch['extrinsics'][:,i:i+2,:,:],
@@ -266,40 +361,30 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch_, batch_idx):
-        batch: BatchedExample = self.data_shim(batch_)
+    def test_step(self, batch, batch_idx):
+        batch: BatchedExample = self.data_shim(batch)
 
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
         if batch_idx % 100 == 0:
             print(f"Test step {batch_idx:0>6}.")
-
-        visualization_dump = {}
-
-        # Render Gaussians.
-        # with self.benchmarker.time("encoder"):
-        #     gaussians = self.encoder(
-        #         batch["context"],
-        #         self.global_step,
-        #         deterministic=True,
-        #         visualization_dump=visualization_dump,
-        #     )
-
-
-        
-
-        with self.benchmarker.time("encoder"):
-            features=self.encoder(batch["context"], self.global_step,None,4,4)
-            for i in range(batch["context"]["image"].shape[1] - 1):
-                tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],5,5,True)
-                if i == 0:
-                    gaussians: Gaussians = tmp_gaussians
-                else:
-                    gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
-                    gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
-                    gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
-                    gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
+        index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
+        # print("Reference view:  ", [batch["context"]["index"][0][i] for i in index_sort])    # 打印参考帧序
+        gaussians = None
+        start_time = time.time()
+        # Run the model.
+        features = self.encoder(batch["context"], self.global_step,None,4,4) 
+        for k in range(batch["context"]["image"].shape[1] - 1):
+            # index_sort[i] 代表会重新进行排序，可能需要重新训练
+            tmp_batch = self.batch_cut(batch["context"],k)
+            tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,k:k+2,:,:,:],5,5,True)
+            if gaussians is None:
+                gaussians: Gaussians = tmp_gaussians
+            else:
+                gaussians.covariances = torch.cat([gaussians.covariances, tmp_gaussians.covariances], dim=1)
+                gaussians.means = torch.cat([gaussians.means, tmp_gaussians.means], dim=1)
+                gaussians.harmonics = torch.cat([gaussians.harmonics, tmp_gaussians.harmonics], dim=1)
+                gaussians.opacities = torch.cat([gaussians.opacities, tmp_gaussians.opacities], dim=1)
             
         with self.benchmarker.time("decoder", num_calls=v):
             output = self.decoder.forward(
@@ -311,46 +396,58 @@ class ModelWrapper(LightningModule):
                 (h, w),
                 depth_mode="depth",
             )
+        end_time = time.time()
 
-        # if True:
-        #     ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
-        #     export_ply(
-        #         batch["context"]["extrinsics"][0, 0],
-        #         gaussians.means[0],
-        #         visualization_dump["scales"][0],
-        #         visualization_dump["rotations"][0],
-        #         gaussians.harmonics[0],
-        #         gaussians.opacities[0],
-        #         ply_path,
-        #     )
-
-        target_gt = batch["target"]["image"]
-
-        dpt = depth_to_relative_disparity(
-                output.depth.squeeze(0).squeeze(0), batch["target"]["near"][0, 0], batch["target"]["far"][0, 0]
+        if False:
+            ply_path = Path(f"outputs/gaussians/fortress/{self.current_step:0>6}.ply")
+            export_ply(
+                batch["context"]["extrinsics"][0, 0],
+                gaussians.means[0],
+                visualization_dump["scales"][0],
+                visualization_dump["rotations"][0],
+                gaussians.harmonics[0],
+                gaussians.opacities[0],
+                ply_path,
             )
 
+        target_gt = batch["target"]["image"]
         psnr_probabilistic = compute_psnr(
             rearrange(target_gt, "b v c h w -> (b v) c h w"),
             rearrange(output.color, "b v c h w -> (b v) c h w"),
         )
+        lpips_loss = lpips.LPIPS(net="alex").cuda()
+        coarse_lpips = img2lpips(lpips_loss, target_gt[0], output.color[0])
+        coarse_ssim = img2ssim(target_gt[0], output.color[0])
+
+        
+        
+        self.psnr=self.psnr+psnr_probabilistic.mean()
+        self.ssim=self.ssim+coarse_ssim
+        self.pips=self.pips+coarse_lpips
+        self.current_step += 1
         if self.global_rank == 0:
             print(
-                f"test step {self.current_step}; "
+                f"test step {self.global_step}; "
                 f"scene = {batch['scene']}; "
+                f"target = {batch['target']['index'].tolist()}; "
                 f"context = {batch['context']['index'].tolist()}; "
-                f"psnr = {psnr_probabilistic.mean():.2f}"
+                f"psnr = {psnr_probabilistic.mean():.2f}; "
+                f"coarse_lpips = {coarse_lpips:.3f}; "
+                f"coarse_ssim = {coarse_ssim:.3f}; "
+                f"time = {end_time - start_time:.3f}s; "
+                f"psnr_mean={self.psnr/self.current_step:.2f}; "
+                f"ssim_mean={self.ssim/self.current_step:.3f}; "
+                f"lpips_mean={self.pips/self.current_step:.3f}; "
+                
             )
-        self.psnr=self.psnr+psnr_probabilistic.mean()
+
         # Save images.
         (scene,) = batch["scene"]
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
         for index, color in zip(batch["target"]["index"][0], output.color[0]):
-            save_image(color, path / scene / f"color/{index:0>2}.png")
-        self.current_step += 1
-        if self.current_step==6:
-            print(f'mean_psnr,{self.psnr/self.current_step}')
+            save_image(color, path / scene / f"color/{index}.png")
+            save_image(target_gt[0], path / scene / f"groundtruth/{index}.png")
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
