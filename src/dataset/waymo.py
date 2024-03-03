@@ -40,7 +40,10 @@ class WaymoStaticDataset(IterableDataset):
     )
     
     def __init__(self, args, mode, step_tacker, **kwargs):
-        self.folder_path = os.path.join('data/waymo/processed/training')
+        if mode == "test" or len(args.scene) > 0:
+            self.folder_path = os.path.join('data/waymo/testing')
+        else:
+            self.folder_path = os.path.join('data/waymo/training')
         self.dataset_name = 'waymo'
         self.pose_noise_level = 0
 
@@ -62,14 +65,17 @@ class WaymoStaticDataset(IterableDataset):
         self.train_poses = []
         self.train_rgb_files = []
 
-        # self.image_size = (176, 240)
-        self.image_size = (352, 480)
+        if mode == "test":
+            # self.image_size = (192, 288)
+            self.image_size = (640, 960)
+        else:
+            self.image_size = (384, 576)
 
         all_scenes = os.listdir(self.folder_path)
         
         ############     Wamyo Parameters     ############
         self.num_cams, self.camera_list =1, [0]
-        self.start_timestep, self.end_timestep = 0, 198
+        self.start_timestep, self.end_timestep = 0, 197
         
         if len(args.scene) > 0:
             self.scenes = args.scene
@@ -90,7 +96,7 @@ class WaymoStaticDataset(IterableDataset):
             
             
             near_depth = 0.1
-            far_depth = 100.0
+            far_depth = 100.0j
             
             i_test = np.arange(len(rgb_files))[::self.llffhold] if mode != 'eval_pose' else []
             i_train = np.array([j for j in np.arange(len(rgb_files)) if
@@ -204,7 +210,7 @@ class WaymoStaticDataset(IterableDataset):
     def __iter__(self):
         for idx in range(len(self.render_rgb_files)):
             rgb_file = self.render_rgb_files[idx]
-            scene, img_idx = rgb_file.split("/")[4], rgb_file[-7:-4]
+            scene, img_idx = rgb_file.split("/")[3], rgb_file[-9:-6]
             rgb = imageio.imread(rgb_file).astype(np.float32) / 255.
             render_pose = self.render_poses[idx]
             intrinsics = self.render_intrinsics[idx]

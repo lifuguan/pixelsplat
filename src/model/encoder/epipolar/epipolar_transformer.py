@@ -82,6 +82,7 @@ class EpipolarTransformer(nn.Module):
         far: Float[Tensor, "batch view"],
         clip_h: int,
         clip_w: int,
+        crop_size:int,
     ) -> tuple[Float[Tensor, "batch view channel a b"], EpipolarSampling,]:
         b, v, _, h, w = features.shape
 
@@ -93,7 +94,7 @@ class EpipolarTransformer(nn.Module):
 
         # Get the samples used for epipolar attention.
         sampling = self.epipolar_sampler.forward(
-            features, extrinsics, intrinsics, near, far,clip_h,clip_w,
+            features, extrinsics, intrinsics, near, far,clip_h,clip_w,crop_size
         )
 
         if self.cfg.num_octaves > 0:
@@ -126,8 +127,8 @@ class EpipolarTransformer(nn.Module):
         #     q = q.mean(dim=2, keepdims=True)
 
         # Run the transformer.
-        if clip_h!=3:
-            features=features[:,:,:,h//8*clip_h:h//8*(clip_h+1),w//8*clip_w:w//8*(clip_w+1)]
+        if clip_h!=5:
+            features=features[:,:,:,h//4//crop_size*clip_h:h//4//crop_size*(clip_h+1),w//4//crop_size*clip_w:w//4//crop_size*(clip_w+1)]
             kv = rearrange(features, "b v c h w -> (b v h w) () c")
             features = self.transformer.forward(
                 kv,       # 当作query
@@ -135,16 +136,16 @@ class EpipolarTransformer(nn.Module):
                 rearrange(q, "b v () r s c -> (b v r) s c"),
                 b=b,
                 v=v,
-                h=h // self.cfg.downscale//2,
-                w=w // self.cfg.downscale//2,
+                h=h // self.cfg.downscale//crop_size,
+                w=w // self.cfg.downscale//crop_size,
             )
             features = rearrange(
                 features,
                 "(b v h w) () c -> b v c h w",
                 b=b,
                 v=v,
-                h=h // self.cfg.downscale//2,
-                w=w // self.cfg.downscale//2,
+                h=h // self.cfg.downscale//crop_size,
+                w=w // self.cfg.downscale//crop_size,
             )
         else:
             kv = rearrange(features, "b v c h w -> (b v h w) () c")

@@ -114,15 +114,16 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
         context: dict,
         global_step: int,
         features: Tensor=None,
-        clip_h: int = 3,
-        clip_w: int = 3,
+        clip_h: int = 5,
+        clip_w: int = 5,
         deterministic: bool = False,
+        crop_size:int = 3,
         visualization_dump: Optional[dict] = None,
     ) :
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
 
-        if clip_h==3 and clip_w==3 and features is None:  #全图
+        if clip_h==5 and clip_w==5 and features is None:  #全图
             # Encode the context images.
             features = self.backbone(context)
             features = rearrange(features, "b v c h w -> b v h w c")
@@ -150,13 +151,14 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
                 context["far"],
                 clip_h,
                 clip_w,
+                crop_size,
             )
 
         # Add the high-resolution skip connection.
-        if clip_h==3:
+        if clip_h==5:
             skip = rearrange(context["image"], "b v c h w -> (b v) c h w")
         else:
-            skip = rearrange(context["image"][:,:,:,clip_h*h//2:(clip_h+1)*h//2,clip_w*w//2:(clip_w+1)*w//2], "b v c h w -> (b v) c h w")
+            skip = rearrange(context["image"][:,:,:,clip_h*h//crop_size:(clip_h+1)*h//crop_size,clip_w*w//crop_size:(clip_w+1)*w//crop_size], "b v c h w -> (b v) c h w")
         skip = self.high_resolution_skip(skip)
         features = features + rearrange(skip, "(b v) c h w -> b v c h w", b=b, v=v)
 
@@ -172,8 +174,8 @@ class EncoderEpipolar(Encoder[EncoderEpipolarCfg]):
 
         # Convert the features and depths into Gaussians.
         xy_ray, _ = sample_image_grid((h, w), device)
-        if clip_w!=3:  #crop
-            xy_ray = rearrange(xy_ray[clip_h*h//2:(clip_h+1)*h//2,clip_w*w//2:(clip_w+1)*w//2,:], "h w xy -> (h w) () xy")
+        if clip_w!=5:  #crop
+            xy_ray = rearrange(xy_ray[clip_h*h//crop_size:(clip_h+1)*h//crop_size,clip_w*w//crop_size:(clip_w+1)*w//crop_size,:], "h w xy -> (h w) () xy")
         else:
             xy_ray = rearrange(xy_ray, "h w xy -> (h w) () xy")  #全分辨率
         gaussians = rearrange(

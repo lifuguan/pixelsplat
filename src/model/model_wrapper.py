@@ -165,14 +165,14 @@ class ModelWrapper(LightningModule):
 
         opt = self.optimizers()
         opt.zero_grad()
-        out_h=176
-        out_w=240
+        out_h=192
+        out_w=288
+        crop_size=h//out_h
         with torch.no_grad():
-
             features=self.encoder(batch["context"], self.global_step,None,4,4)
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],3,3,True)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],5,5,True,out_h)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
@@ -191,7 +191,6 @@ class ModelWrapper(LightningModule):
                 depth_mode=self.train_cfg.depth_mode,
             )
             target_gt = batch["target"]["image"]
-        
         output.color.requires_grad_(True)
         total_loss = 0
         for loss_fn in self.losses:
@@ -206,19 +205,20 @@ class ModelWrapper(LightningModule):
         col=ceil(w/out_w)
         for i in range(row):
             for j in range(col):
-                if i==row-1 and j==col-1:
-                    data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(w-out_w//2)))
-                elif i==row-1:#最后一行
-                    data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(out_w//2+j*out_w)))
-                elif j==col-1:#z最后一列
-                    data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(w-out_w//2)))
-                else:
-                    data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(out_w//2+j*out_w)))  
-                # Run the model.
+                data_crop = batch
+                # if i==row-1 and j==col-1:
+                #     data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(w-out_w//2)))
+                # elif i==row-1:#最后一行
+                #     data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(out_w//2+j*out_w)))
+                # elif j==col-1:#z最后一列
+                #     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(w-out_w//2)))
+                # else:
+                #     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(out_w//2+j*out_w)))  
+                # # Run the model.
                 features = self.encoder(batch["context"], self.global_step,None,4,4) 
                 for k in range(batch["context"]["image"].shape[1] - 1):
                     tmp_batch = self.batch_cut(data_crop["context"],k)
-                    tmp_gaussians = self.encoder(tmp_batch, self.global_step,features[:,k:k+2,:,:,:],i,j,True)
+                    tmp_gaussians = self.encoder(tmp_batch, self.global_step,features[:,k:k+2,:,:,:],i,j,True,crop_size)
                     if k == 0 :
                         gaussians: Gaussians = tmp_gaussians
                     else:
@@ -235,8 +235,8 @@ class ModelWrapper(LightningModule):
                     (h, w),
                     depth_mode=self.train_cfg.depth_mode,
                 )
-                output_1.color = output_1.color[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2]
-                output_1.color.backward(rgb_pred_grad[:,:,:,center_h - out_h // 2:center_h + out_h // 2, center_w - out_w // 2:center_w + out_w // 2])
+                output_1.color = output_1.color[:,:,:,i*out_h :(i+1)* out_h, j*out_w:(j+1)*out_w]
+                output_1.color.backward(rgb_pred_grad[:,:,:,i*out_h :(i+1)* out_h, j*out_w:(j+1)*out_w])
 
         opt.step(); sch.step()
 
@@ -292,7 +292,7 @@ class ModelWrapper(LightningModule):
             features=self.encoder(batch["context"], self.global_step,None,4,4)
             for i in range(batch["context"]["image"].shape[1] - 1):
                 tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],3,3,True)
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],5,5,True)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:

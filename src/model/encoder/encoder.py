@@ -24,6 +24,7 @@ class Encoder(nn.Module, ABC, Generic[T]):
         features: Tensor,
         clip_h: int,
         clip_w: int,
+        crop_size:int ,
         deterministic: bool,
     ) -> Gaussians:
         pass
