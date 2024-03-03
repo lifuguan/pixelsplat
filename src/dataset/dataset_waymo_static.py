@@ -50,7 +50,7 @@ class WaymoStaticDataset(IterableDataset):
         self.args = args
         self.mode = mode  # train / test / validation
         # self.num_source_views = args.view_sampler.num_context_views
-        self.num_source_views = 5
+        self.num_source_views = 2
         self.llffhold = 8
         self.random_crop = False
         self.rectify_inplane_rotation = False
@@ -66,7 +66,8 @@ class WaymoStaticDataset(IterableDataset):
         self.train_rgb_files = []
 
         if mode == "test":
-            self.image_size = (640, 960)
+            self.image_size = (192, 288)
+            # self.image_size = (640, 960)
         else:
             self.image_size = (192, 288)
 
@@ -95,7 +96,7 @@ class WaymoStaticDataset(IterableDataset):
             
             
             near_depth = 0.1
-            far_depth = 100.0
+            far_depth = 100.0j
             
             i_test = np.arange(len(rgb_files))[::self.llffhold] if mode != 'eval_pose' else []
             i_train = np.array([j for j in np.arange(len(rgb_files)) if
@@ -104,7 +105,7 @@ class WaymoStaticDataset(IterableDataset):
             if mode == 'train':
                 i_render = i_train
             else:
-                i_render = i_test
+                i_render = i_train
 
             
             self.train_intrinsics.append([intrinsics] * len(i_train))
@@ -209,7 +210,7 @@ class WaymoStaticDataset(IterableDataset):
     def __iter__(self):
         for idx in range(len(self.render_rgb_files)):
             rgb_file = self.render_rgb_files[idx]
-            scene, img_idx = rgb_file.split("/")[3], rgb_file[-8:-4]
+            scene, img_idx = rgb_file.split("/")[3], rgb_file[-9:-6]
             rgb = imageio.imread(rgb_file).astype(np.float32) / 255.
             render_pose = self.render_poses[idx]
             intrinsics = self.render_intrinsics[idx]
