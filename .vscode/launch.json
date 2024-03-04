@@ -116,7 +116,7 @@
         },
         {
             "env": {
-                "CUDA_VISIBLE_DEVICES": "5",
+                "CUDA_VISIBLE_DEVICES": "2",
             }, 
             "name": "Test (waymo)",
             "type": "python",
@@ -129,12 +129,12 @@
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "++dataset.scene=['003']",
+                "++dataset.scene=['126']",
                 "+experiment=waymo",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
                 // "checkpointing.load=outputs/waymo_generalized/checkpoints/20000.ckpt",
-                "checkpointing.load=outputs/2024-03-03/ft_003/checkpoints/21200.ckpt",
+                "checkpointing.load=outputs/2024-03-03/22-03-29/checkpoints/4000.ckpt",
             ],
         },
         {
