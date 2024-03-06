@@ -5,7 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Train (Debug)",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "7",
+            },
+            "name": "pixelsplat (llff)",
             "type": "python",
             "request": "launch",
             "module": "src.main",
@@ -13,15 +16,15 @@
             "justMyCode": false,
             "args": [
                 "wandb.mode=disabled",
-                "+experiment=re10k",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "data_loader.train.batch_size=1",
+                "++dataset.scene=['room']",
+                "+experiment=llff_test",
+                "mode=test",
+                "dataset/view_sampler=evaluation",
+                "checkpointing.load=model_zoo/re10k_resnet.ckpt",
             ],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-            }
         },
         {
             "name": "Train (llff)",
@@ -31,16 +34,16 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "wandb.mode=disabled",
+                "wandb.mode=online",
                 "+experiment=llff",
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=/home/gyy/Downloads/data/2000.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/1600.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3,4,5",
             }
         },
         {
@@ -58,10 +61,10 @@
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
                 "data_loader.train.batch_size=1",
-                "checkpointing.load=outputs/llff_generalized/checkpoints/llff_generalized_room28.ckpt",
+                "checkpointing.load=outputs/llff_generalized/checkpoints/1600.ckpt",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "5,2",
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
             }
         },
         {
@@ -79,11 +82,12 @@
                 "data_loader.train.num_workers=0",
                 "data_loader.test.num_workers=0",
                 "data_loader.val.num_workers=0",
-                "++dataset.scene=['019']",
-                "+experiment=waymo",
+                "++dataset.scene=['room']",
+                "+experiment=llff_test",
                 "mode=test",
                 "dataset/view_sampler=evaluation",
-                "checkpointing.load=outputs/2024-03-03/019_ft/checkpoints/2300.ckpt",
+                "checkpointing.load=outputs/2024-03-06/22-51-56/checkpoints/2600.ckpt",
+                // "checkpointing.load=outputs/llff_generalized/checkpoints/1600.ckpt",
             ],
         },
         {

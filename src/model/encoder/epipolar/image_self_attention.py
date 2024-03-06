@@ -65,7 +65,7 @@ class ImageSelfAttention(nn.Module):
         _, _, nh, nw = tokens.shape
         crop_size=2
         if nh <20:
-            index= self.index//4   #查看是第几个crop
+            index= self.index//6   #查看是第几个crop
             self.index=self.index+1
             i=index//crop_size
             j=index%crop_size  #行和列的索引

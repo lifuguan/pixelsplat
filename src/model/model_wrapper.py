@@ -239,14 +239,14 @@ class ModelWrapper(LightningModule):
         self.automatic_optimization = False
         self.ssim=0
         self.pips=0
-    def batch_cut(self, batch, i):
+    def batch_cut(self, batch, idx1, idx2):
         return {
-            'extrinsics': batch['extrinsics'][:,i:i+2,:,:],
-            'intrinsics': batch['intrinsics'][:,i:i+2,:,:],
-            'image': batch['image'][:,i:i+2,:,:,:],
-            'near': batch['near'][:,i:i+2],
-            'far': batch['far'][:,i:i+2],
-            'index': batch['index'][:,i:i+2],
+            'extrinsics': torch.cat([batch['extrinsics'][:,idx1:idx1+1,:,:], batch['extrinsics'][:,idx2:idx2+1,:,:]], dim=1),
+            'intrinsics': torch.cat([batch['intrinsics'][:,idx1:idx1+1,:,:], batch['intrinsics'][:,idx2:idx2+1,:,:]], dim=1),
+            'image': torch.cat([batch['image'][:,idx1:idx1+1,...], batch['image'][:,idx2:idx2+1,...]], dim=1),
+            'near': torch.cat([batch['near'][:,idx1:idx1+1], batch['near'][:,idx2:idx2+1]], dim=1),
+            'far': torch.cat([batch['far'][:,idx1:idx1+1], batch['far'][:,idx2:idx2+1]], dim=1),
+            'index': torch.cat([batch['index'][:,idx1:idx1+1], batch['index'][:,idx2:idx2+1]], dim=1),
         }
         
     def training_step(self, batch, batch_idx):
@@ -260,14 +260,15 @@ class ModelWrapper(LightningModule):
 
         opt = self.optimizers()
         opt.zero_grad()
-        out_h=192
-        out_w=288
+        out_h=176
+        out_w=240
         crop_size=h//out_h
+        index_sort = np.argsort([int(s.item()) for s in batch["context"]["index"][0]])
         with torch.no_grad():
             features=self.encoder(batch["context"], self.global_step,None,4,4)
             for i in range(batch["context"]["image"].shape[1] - 1):
-                tmp_batch = self.batch_cut(batch["context"],i)
-                tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,i:i+2,:,:,:],5,5,True,out_h)
+                tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1])
+                tmp_gaussians = self.encoder(tmp_batch, self.global_step, torch.cat([features[:,index_sort[i]:index_sort[i]+1,:,:,:], features[:,index_sort[i+1]:index_sort[i+1]+1,:,:,:]],dim=1),5,5,True,out_h)
                 if i == 0:
                     gaussians: Gaussians = tmp_gaussians
                 else:
@@ -301,19 +302,10 @@ class ModelWrapper(LightningModule):
         for i in range(row):
             for j in range(col):
                 data_crop = batch
-                # if i==row-1 and j==col-1:
-                #     data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(w-out_w//2)))
-                # elif i==row-1:#最后一行
-                #     data_crop,center_h,center_w=random_crop(  batch,size=[out_h,out_w],center=(int(h-out_h//2),int(out_w//2+j*out_w)))
-                # elif j==col-1:#z最后一列
-                #     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(w-out_w//2)))
-                # else:
-                #     data_crop,center_h,center_w=random_crop( batch,size=[out_h,out_w],center=(int(out_h//2+i*out_h),int(out_w//2+j*out_w)))  
-                # # Run the model.
                 features = self.encoder(batch["context"], self.global_step,None,4,4) 
                 for k in range(batch["context"]["image"].shape[1] - 1):
-                    tmp_batch = self.batch_cut(data_crop["context"],k)
-                    tmp_gaussians = self.encoder(tmp_batch, self.global_step,features[:,k:k+2,:,:,:],i,j,True,crop_size)
+                    tmp_batch = self.batch_cut(data_crop["context"], index_sort[k], index_sort[k+1])
+                    tmp_gaussians = self.encoder(tmp_batch, self.global_step,torch.cat([features[:,index_sort[k]:index_sort[k]+1,:,:,:], features[:,index_sort[k+1]:index_sort[k+1]+1,:,:,:]],dim=1),i,j,True,crop_size)
                     if k == 0 :
                         gaussians: Gaussians = tmp_gaussians
                     else:
@@ -374,10 +366,10 @@ class ModelWrapper(LightningModule):
         start_time = time.time()
         # Run the model.
         features = self.encoder(batch["context"], self.global_step,None,4,4) 
-        for k in range(batch["context"]["image"].shape[1] - 1):
+        for i in range(batch["context"]["image"].shape[1] - 1):
             # index_sort[i] 代表会重新进行排序，可能需要重新训练
-            tmp_batch = self.batch_cut(batch["context"],k)
-            tmp_gaussians = self.encoder(tmp_batch, self.global_step, features[:,k:k+2,:,:,:],5,5,True)
+            tmp_batch = self.batch_cut(batch["context"], index_sort[i], index_sort[i+1])
+            tmp_gaussians = self.encoder(tmp_batch, self.global_step, torch.cat([features[:,index_sort[i]:index_sort[i]+1,:,:,:], features[:,index_sort[i+1]:index_sort[i+1]+1,:,:,:]],dim=1),5,5,True)
             if gaussians is None:
                 gaussians: Gaussians = tmp_gaussians
             else:
